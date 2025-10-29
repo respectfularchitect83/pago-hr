@@ -1,3 +1,4 @@
+const API_URL = import.meta.env.VITE_API_URL;
 
 import React, { useState, useCallback } from 'react';
 // FIX: Imported PublicEmployeeInfo to resolve TypeScript error.
@@ -15,19 +16,19 @@ const App: React.FC = () => {
   // Fetch data from backend API on mount
   React.useEffect(() => {
     // Fetch employees
-    fetch('/api/employees')
+  fetch(`${API_URL}/api/employees`)
       .then(res => res.json())
       .then(data => setEmployees(data))
       .catch(() => setEmployees([]));
 
     // Fetch company info
-    fetch('/api/company')
+  fetch(`${API_URL}/api/company`)
       .then(res => res.json())
       .then(data => setCompanyInfo(data))
       .catch(() => setCompanyInfo(null));
 
     // Fetch HR users
-    fetch('/api/hr-users')
+  fetch(`${API_URL}/api/hr-users`)
       .then(res => res.json())
       .then(data => setHrUsers(data))
       .catch(() => setHrUsers([]));
@@ -39,7 +40,7 @@ const App: React.FC = () => {
   // Employee login handler with password
   const handleLoginSuccess = useCallback(async (employeeId: string, password: string): Promise<boolean> => {
     try {
-      const res = await fetch('/api/auth/login', {
+  const res = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ employeeId, password })
@@ -59,7 +60,7 @@ const App: React.FC = () => {
   // Admin login handler with password
   const handleAdminLoginSuccess = async (username: string, password: string): Promise<boolean> => {
     try {
-      const res = await fetch('/api/auth/login', {
+  const res = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: username, password })
@@ -81,7 +82,7 @@ const App: React.FC = () => {
   }, []);
   
   const handleUpdateEmployee = async (updatedEmployee: Employee) => {
-    await fetch(`/api/employees/${updatedEmployee.id}`, {
+  await fetch(`${API_URL}/api/employees/${updatedEmployee.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedEmployee),
@@ -90,7 +91,7 @@ const App: React.FC = () => {
   };
 
   const handleAddNewEmployee = async (newEmployeeData: Omit<Employee, 'id'>) => {
-    const res = await fetch('/api/employees', {
+  const res = await fetch(`${API_URL}/api/employees`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newEmployeeData),
@@ -101,13 +102,13 @@ const App: React.FC = () => {
 
   const handleDeleteEmployee = async (employeeId: string) => {
     if (window.confirm('Are you sure you want to delete this employee? This action cannot be undone.')) {
-      await fetch(`/api/employees/${employeeId}`, { method: 'DELETE' });
+  await fetch(`${API_URL}/api/employees/${employeeId}`, { method: 'DELETE' });
       setEmployees(prev => prev.filter(emp => emp.id !== employeeId));
     }
   };
 
   const handleUpdateCompanyInfo = async (updatedCompanyInfo: Company) => {
-    await fetch('/api/company', {
+  await fetch(`${API_URL}/api/company`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedCompanyInfo),
@@ -116,7 +117,7 @@ const App: React.FC = () => {
   };
 
   const handleAddNewHRUser = async (newUserData: Omit<HRUser, 'id'>) => {
-    const res = await fetch('/api/hr-users', {
+  const res = await fetch(`${API_URL}/api/hr-users`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newUserData),
@@ -127,7 +128,7 @@ const App: React.FC = () => {
   };
 
   const handleUpdateHRUser = async (updatedUser: HRUser) => {
-    await fetch(`/api/hr-users/${updatedUser.id}`, {
+  await fetch(`${API_URL}/api/hr-users/${updatedUser.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedUser),
