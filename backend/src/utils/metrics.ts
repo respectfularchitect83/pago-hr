@@ -1,5 +1,5 @@
 import { Counter, Histogram } from 'prom-client';
-import { register } from './metrics';
+import { register } from './prometheusRegistry';
 
 // Request counter
 export const httpRequestsTotal = new Counter({
