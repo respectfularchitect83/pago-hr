@@ -64,12 +64,14 @@ export const login = async (req: Request, res: Response) => {
 
     // Find user
     const user = await findUserByEmail(email);
+    console.log('USER FROM DB:', user);
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     // Validate password
     const isValid = await validatePassword(user, password);
+    console.log('PASSWORD VALID:', isValid);
     if (!isValid) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
