@@ -14,7 +14,17 @@ import leaveRoutes from './routes/leave';
 // Load environment variables
 config();
 
+
 const app = express();
+
+// CORS setup for deployed frontend
+const allowedOrigins = [
+  'https://pago-hr.vercel.app',
+];
+app.use(cors({
+  origin: allowedOrigins,
+  credentials: true,
+}));
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
