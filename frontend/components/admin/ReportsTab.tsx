@@ -1,0 +1,102 @@
+
+import React, { useState } from 'react';
+import { Employee, Company } from '../../types';
+import PaySheetReport from './reports/PaySheetReport';
+import TaxReport from './reports/TaxReport';
+import SocialSecurityReport from './reports/SocialSecurityReport';
+
+interface ReportsTabProps {
+    employees: Employee[];
+    companyInfo: Company;
+}
+
+type ReportType = 'pay-sheet' | 'tax' | 'social-security';
+
+const ReportsTab: React.FC<ReportsTabProps> = ({ employees, companyInfo }) => {
+    const today = new Date();
+    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+    const todayStr = today.toISOString().split('T')[0];
+
+    const [dates, setDates] = useState({ start: firstDayOfMonth, end: todayStr });
+    const [activeReport, setActiveReport] = useState<ReportType>('pay-sheet');
+    const [selectedBranch, setSelectedBranch] = useState<string>('all');
+
+    const renderReport = () => {
+        if (!dates.start || !dates.end) {
+            return <p className="text-center text-gray-500 mt-8">Please select a valid date range to generate a report.</p>;
+        }
+        
+        const reportProps = {
+            employees,
+            companyInfo,
+            startDate: dates.start,
+            endDate: dates.end,
+            selectedBranch,
+        };
+
+        switch(activeReport) {
+            case 'pay-sheet':
+                return <PaySheetReport {...reportProps} />;
+            case 'tax':
+                return <TaxReport {...reportProps} />;
+            case 'social-security':
+                return <SocialSecurityReport {...reportProps} />;
+            default:
+                return null;
+        }
+    }
+
+    return (
+        <div className="space-y-6">
+            <h2 className="text-xl font-bold text-gray-800">Payroll Reports</h2>
+
+            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex flex-col sm:flex-row items-center gap-4 flex-wrap">
+                    <p className="font-medium text-gray-700">Report Filters:</p>
+                    <div className="flex items-center gap-2">
+                        <label htmlFor="startDate" className="text-sm text-gray-600">From</label>
+                        <input type="date" id="startDate" value={dates.start} onChange={e => setDates({ ...dates, start: e.target.value })} className="p-2 border rounded-md" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <label htmlFor="endDate" className="text-sm text-gray-600">To</label>
+                        <input type="date" id="endDate" value={dates.end} onChange={e => setDates({ ...dates, end: e.target.value })} className="p-2 border rounded-md" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <label htmlFor="branchFilter" className="text-sm text-gray-600">Branch</label>
+                        <select
+                            id="branchFilter"
+                            value={selectedBranch}
+                            onChange={e => setSelectedBranch(e.target.value)}
+                            className="p-2 border rounded-md"
+                        >
+                            <option value="all">All Branches</option>
+                            {companyInfo.branches.map(branch => (
+                                <option key={branch} value={branch}>{branch}</option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div className="border-b border-gray-200">
+                <nav className="-mb-px flex space-x-6" aria-label="Tabs">
+                    <button onClick={() => setActiveReport('pay-sheet')} className={`whitespace-nowrap pb-2 px-1 border-b-2 font-medium text-sm ${activeReport === 'pay-sheet' ? 'border-gray-800 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
+                        Pay Sheet
+                    </button>
+                    <button onClick={() => setActiveReport('tax')} className={`whitespace-nowrap pb-2 px-1 border-b-2 font-medium text-sm ${activeReport === 'tax' ? 'border-gray-800 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
+                        Tax Report
+                    </button>
+                    <button onClick={() => setActiveReport('social-security')} className={`whitespace-nowrap pb-2 px-1 border-b-2 font-medium text-sm ${activeReport === 'social-security' ? 'border-gray-800 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
+                        Social Security Report
+                    </button>
+                </nav>
+            </div>
+            
+            <div>
+                {renderReport()}
+            </div>
+        </div>
+    );
+};
+
+export default ReportsTab;
