@@ -140,7 +140,7 @@ const CompanySettings: React.FC<CompanySettingsProps> = ({ company, onSave, empl
                             <img 
                                 src={localCompany.logoUrl || 'https://via.placeholder.com/150x50.png?text=No+Logo'} 
                                 alt="Company Logo" 
-                                className="h-16 w-auto bg-white border p-1 rounded object-contain" 
+                                className="h-16 w-auto max-w-[350px] bg-white border p-1 rounded object-contain" 
                             />
                             <button
                                 type="button"

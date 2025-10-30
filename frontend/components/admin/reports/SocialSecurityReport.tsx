@@ -3,6 +3,8 @@ import React, { useMemo } from 'react';
 import { Employee, Company } from '../../../types';
 import { convertToCSV, downloadCSV } from '../../../utils/csvHelper';
 import DownloadIcon from '../../icons/DownloadIcon';
+import DocumentTextIcon from '../../icons/DocumentTextIcon';
+import { downloadTableAsPdf } from '../../../utils/reportExport';
 import { countryRegulations } from '../../../data/regulations';
 
 interface ReportProps {
@@ -11,9 +13,10 @@ interface ReportProps {
     startDate: string;
     endDate: string;
     selectedBranch: string;
+    selectedEmployeeId: string;
 }
 
-const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, startDate, endDate, selectedBranch }) => {
+const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, startDate, endDate, selectedBranch, selectedEmployeeId }) => {
     
     const ssDescription = countryRegulations[companyInfo.country].socialSecurity.description;
 
@@ -22,9 +25,11 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
         const start = new Date(startDate);
         const end = new Date(endDate);
         
-        const employeesToProcess = selectedBranch === 'all' 
-            ? employees 
-            : employees.filter(emp => emp.branch === selectedBranch);
+        const employeesToProcess = employees.filter(emp => {
+            const matchesBranch = selectedBranch === 'all' || emp.branch === selectedBranch;
+            const matchesEmployee = selectedEmployeeId === 'all' || emp.id === selectedEmployeeId;
+            return matchesBranch && matchesEmployee;
+        });
 
         employeesToProcess.forEach(emp => {
             emp.payslips.forEach(p => {
@@ -45,25 +50,51 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
             });
         });
         return data.sort((a, b) => new Date(a.payDate).getTime() - new Date(b.payDate).getTime());
-    }, [employees, startDate, endDate, ssDescription, selectedBranch]);
+    }, [employees, startDate, endDate, ssDescription, selectedBranch, selectedEmployeeId]);
 
     const handleDownload = () => {
         const csv = convertToCSV(reportData);
         downloadCSV(csv, `social-security-report-${startDate}-to-${endDate}.csv`);
     };
 
+    const handleDownloadPdf = () => {
+        downloadTableAsPdf({
+            title: 'Social Security Report',
+            subtitle: `Period ${startDate} to ${endDate}`,
+            rows: reportData,
+            columns: [
+                { key: 'name', label: 'Employee' },
+                { key: 'employeeId', label: 'Employee ID' },
+                { key: 'branch', label: 'Branch' },
+                { key: 'payDate', label: 'Pay Date' },
+                { key: 'ssDescription', label: 'Description' },
+                { key: 'ssAmount', label: 'Contribution', align: 'right' },
+            ],
+        });
+    };
+
     return (
         <div>
             <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold text-gray-700">Social Security Report Results</h3>
-                <button
-                    onClick={handleDownload}
-                    className="flex items-center px-3 py-2 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 text-sm"
-                    disabled={reportData.length === 0}
-                >
-                    <DownloadIcon />
-                    <span className="ml-2">Download CSV</span>
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handleDownloadPdf}
+                        className="flex items-center px-3 py-2 bg-gray-500 text-white font-semibold rounded-lg hover:bg-gray-600 text-sm"
+                        disabled={reportData.length === 0}
+                    >
+                        <DocumentTextIcon />
+                        <span className="ml-2">Download PDF</span>
+                    </button>
+                    <button
+                        onClick={handleDownload}
+                        className="flex items-center px-3 py-2 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 text-sm"
+                        disabled={reportData.length === 0}
+                    >
+                        <DownloadIcon />
+                        <span className="ml-2">Download CSV</span>
+                    </button>
+                </div>
             </div>
              <div className="overflow-x-auto border rounded-lg">
                 <table className="min-w-full divide-y divide-gray-200">

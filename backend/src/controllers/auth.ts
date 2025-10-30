@@ -46,7 +46,8 @@ export const register = async (req: Request, res: Response) => {
         email: user.email,
         firstName: user.first_name,
         lastName: user.last_name,
-        role: user.role
+        role: user.role,
+        photoUrl: user.photo_url,
       },
       token
     });
@@ -114,6 +115,7 @@ export const login = async (req: Request, res: Response) => {
         employeeId: user.employee_id,
         department: user.department,
         position: user.position,
+        photoUrl: user.photo_url,
       },
       token
     });
@@ -136,7 +138,8 @@ export const me = async (req: Request, res: Response) => {
       employeeId: user.employee_id,
       department: user.department,
       position: user.position,
-      joinDate: user.join_date
+      joinDate: user.join_date,
+      photoUrl: user.photo_url,
     });
   } catch (error) {
     console.error('Profile error:', error);

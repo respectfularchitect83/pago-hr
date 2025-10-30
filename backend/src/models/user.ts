@@ -15,6 +15,7 @@ export interface User {
   join_date?: Date;
   created_at: Date;
   updated_at: Date;
+  photo_url?: string;
 }
 
 export async function createUser(userData: Partial<User>): Promise<User> {
@@ -27,12 +28,12 @@ export async function createUser(userData: Partial<User>): Promise<User> {
   const result = await pool.query(
     `INSERT INTO users (
       email, password, role, first_name, last_name,
-      employee_id, department, position, join_date
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+      employee_id, department, position, join_date, photo_url
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
     RETURNING *`,
     [
       email, hashedPassword, role, first_name, last_name,
-      rest.employee_id, rest.department, rest.position, rest.join_date
+      rest.employee_id, rest.department, rest.position, rest.join_date, rest.photo_url
     ]
   );
   

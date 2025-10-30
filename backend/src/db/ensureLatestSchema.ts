@@ -43,6 +43,11 @@ export const ensureLatestSchema = async (): Promise<void> => {
          SET leave_records = '[]'::jsonb
        WHERE leave_records IS NULL;
     `);
+
+    await pool.query(`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS photo_url TEXT;
+    `);
   } catch (error) {
     logger.error('Failed to ensure latest database schema', {
       error: error instanceof Error ? error.message : error,

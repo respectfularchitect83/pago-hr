@@ -82,19 +82,22 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ view, employee, compa
                 <p className="text-md text-gray-500">{employee.position}</p>
 
                 {leaveBalances && (
-                    <div className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm text-gray-600">
-                        {keyBalancesToShow.map(type => {
-                            const balance = leaveBalances[type as keyof typeof leaveBalances];
-                            if (balance) {
-                                return (
-                                    <div key={type} className="flex items-center">
-                                        <span className="font-semibold mr-1">{type}:</span>
-                                        <span>{balance.available.toFixed(1)} days</span>
-                                    </div>
-                                );
-                            }
-                            return null;
-                        })}
+                    <div className="mt-4 w-full">
+                        <p className="text-xs uppercase tracking-wide text-gray-500">Leave Balances</p>
+                        <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm text-gray-600">
+                            {keyBalancesToShow.map(type => {
+                                const balance = leaveBalances[type as keyof typeof leaveBalances];
+                                if (balance) {
+                                    return (
+                                        <div key={type} className="flex items-center">
+                                            <span className="font-semibold mr-1">{type}:</span>
+                                            <span>{balance.available.toFixed(1)} days</span>
+                                        </div>
+                                    );
+                                }
+                                return null;
+                            })}
+                        </div>
                     </div>
                 )}
                  <div className="mt-6">

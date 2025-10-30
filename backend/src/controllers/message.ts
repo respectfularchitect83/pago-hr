@@ -29,6 +29,7 @@ const MESSAGE_SELECT_BASE = `
     su.last_name AS sender_last_name,
     su.email AS sender_email,
     su.employee_id AS sender_employee_id,
+  su.photo_url AS sender_user_photo_url,
     se.id AS sender_employee_db_id,
     se.firstname AS sender_employee_firstname,
     se.lastname AS sender_employee_lastname,
@@ -38,6 +39,7 @@ const MESSAGE_SELECT_BASE = `
     ru.last_name AS recipient_last_name,
     ru.email AS recipient_email,
     ru.employee_id AS recipient_employee_id,
+  ru.photo_url AS recipient_user_photo_url,
     re.id AS recipient_employee_db_id,
     re.firstname AS recipient_employee_firstname,
     re.lastname AS recipient_employee_lastname,
@@ -86,7 +88,7 @@ const mapMessageRow = (row: any): MessageResponse => {
     status: row.is_read ? 'read' : 'unread',
   };
 
-  const senderPhotoUrl = senderRole === 'employee' ? row.sender_employee_photo_url : undefined;
+  const senderPhotoUrl = senderRole === 'employee' ? row.sender_employee_photo_url : row.sender_user_photo_url;
   if (senderPhotoUrl) {
     mapped.senderPhotoUrl = senderPhotoUrl;
   }

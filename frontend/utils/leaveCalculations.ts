@@ -68,7 +68,7 @@ export const calculateLeaveBalances = (employee: Employee, company: Company): Le
     }
     
     const diffTime = Math.max(today.getTime() - startDate.getTime(), 0);
-    const diffMonths = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 30.4375)); // Average days in a month
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
     for (const type in company.leaveSettings) {
         const leaveType = type as LeaveType;
@@ -78,10 +78,13 @@ export const calculateLeaveBalances = (employee: Employee, company: Company): Le
 
         let accrued: number;
         if (leaveType === 'Annual') {
-            const monthlyRate = annualDays / 12;
-            accrued = monthlyRate * diffMonths;
-            if (annualDays > 0) {
-                accrued = Math.min(accrued, annualDays);
+            if (annualDays <= 0) {
+                accrued = 0;
+            } else {
+                const fullYears = Math.floor(diffDays / 365);
+                const remainingDays = diffDays % 365;
+                const dailyRate = annualDays / 365;
+                accrued = (fullYears * annualDays) + (dailyRate * remainingDays);
             }
         } else {
             accrued = annualDays;

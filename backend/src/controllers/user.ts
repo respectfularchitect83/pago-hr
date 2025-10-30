@@ -7,7 +7,7 @@ import logger from '../utils/logger';
 // List all users (HR, admin, employees)
 export const listUsers = async (req: Request, res: Response) => {
   try {
-    const result = await pool.query('SELECT id, email, role, first_name, last_name, employee_id, department, position, join_date, created_at, updated_at FROM users');
+  const result = await pool.query('SELECT id, email, role, first_name, last_name, employee_id, department, position, join_date, photo_url, created_at, updated_at FROM users');
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch users' });
@@ -32,6 +32,8 @@ export const createUser = async (req: Request, res: Response) => {
       position,
       join_date,
       joinDate,
+      photo_url,
+      photoUrl,
     } = req.body;
 
     if (!password) {
@@ -49,8 +51,8 @@ export const createUser = async (req: Request, res: Response) => {
     const resolvedLastName = last_name || lastName || '';
 
     const result = await pool.query(
-      `INSERT INTO users (email, password, role, first_name, last_name, employee_id, department, position, join_date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      `INSERT INTO users (email, password, role, first_name, last_name, employee_id, department, position, join_date, photo_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
       [
         emailSource,
         hashedPassword,
@@ -61,6 +63,7 @@ export const createUser = async (req: Request, res: Response) => {
         department || null,
         position || null,
         join_date || joinDate || null,
+        photo_url || photoUrl || null,
       ]
     );
     const { password: _password, ...user } = result.rows[0];
@@ -77,7 +80,7 @@ export const createUser = async (req: Request, res: Response) => {
 export const getUser = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const result = await pool.query('SELECT id, email, role, first_name, last_name, employee_id, department, position, join_date, created_at, updated_at FROM users WHERE id = $1', [id]);
+  const result = await pool.query('SELECT id, email, role, first_name, last_name, employee_id, department, position, join_date, photo_url, created_at, updated_at FROM users WHERE id = $1', [id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -106,6 +109,8 @@ export const updateUser = async (req: Request, res: Response) => {
       position,
       join_date,
       joinDate,
+      photo_url,
+      photoUrl,
     } = req.body;
 
     const updates: string[] = [];
@@ -161,6 +166,11 @@ export const updateUser = async (req: Request, res: Response) => {
       values.push(hashedPassword);
     }
 
+    if (photo_url !== undefined || photoUrl !== undefined) {
+      updates.push(`photo_url = $${index++}`);
+      values.push(photo_url ?? photoUrl ?? null);
+    }
+
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No update fields provided' });
     }
@@ -168,7 +178,7 @@ export const updateUser = async (req: Request, res: Response) => {
     values.push(id);
 
     const result = await pool.query(
-      `UPDATE users SET ${updates.join(', ')} WHERE id=$${index} RETURNING id, email, role, first_name, last_name, employee_id, department, position, join_date, created_at, updated_at`,
+      `UPDATE users SET ${updates.join(', ')} WHERE id=$${index} RETURNING id, email, role, first_name, last_name, employee_id, department, position, join_date, photo_url, created_at, updated_at`,
       values
     );
     if (result.rows.length === 0) {

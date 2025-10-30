@@ -805,7 +805,7 @@ const App: React.FC = () => {
       role: newUserData.role ?? 'hr',
       first_name: newUserData.firstName,
       last_name: newUserData.lastName,
-      photoUrl: newUserData.photoUrl,
+      photo_url: newUserData.photoUrl,
     };
     const res = await fetch(`${API_URL}/api/users`, {
       method: 'POST',
@@ -829,7 +829,7 @@ const App: React.FC = () => {
       role: updatedUser.role ?? 'hr',
       first_name: updatedUser.firstName,
       last_name: updatedUser.lastName,
-      photoUrl: updatedUser.photoUrl,
+      photo_url: updatedUser.photoUrl,
     };
     if (updatedUser.password) {
       payload.password = updatedUser.password;

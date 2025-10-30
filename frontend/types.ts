@@ -43,6 +43,7 @@ export interface LeaveRecord {
   startDate: string;
   endDate: string;
   days: number;
+  note?: string;
 }
 
 export interface Employee {

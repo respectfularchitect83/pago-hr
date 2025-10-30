@@ -195,7 +195,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <img
                     src={companyInfo.logoUrl}
                     alt={`${companyInfo.name} logo`}
-                    className="h-16 sm:h-20 object-contain"
+                    className="h-16 sm:h-20 object-contain max-w-[350px]"
                   />
                 </div>
               )}

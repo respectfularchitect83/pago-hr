@@ -22,6 +22,7 @@ const LeaveTab: React.FC<LeaveTabProps> = ({ employees, companyInfo, onUpdateEmp
         startDate: '',
         endDate: '',
         days: 0,
+        note: '',
     });
     
     useEffect(() => {
@@ -71,7 +72,11 @@ const LeaveTab: React.FC<LeaveTabProps> = ({ employees, companyInfo, onUpdateEmp
 
         const newRecord: LeaveRecord = {
             id: `leave-${Date.now()}`,
-            ...newLeave
+            type: newLeave.type,
+            startDate: newLeave.startDate,
+            endDate: newLeave.endDate,
+            days: newLeave.days,
+            note: newLeave.note?.trim() ? newLeave.note.trim() : undefined,
         };
         
         const updatedEmployee: Employee = {
@@ -87,7 +92,7 @@ const LeaveTab: React.FC<LeaveTabProps> = ({ employees, companyInfo, onUpdateEmp
         }
         
         // Reset form
-        setNewLeave({ type: 'Annual', startDate: '', endDate: '', days: 0 });
+    setNewLeave({ type: 'Annual', startDate: '', endDate: '', days: 0, note: '' });
     };
     
     const handleDeleteLeave = async (leaveId: string) => {
@@ -142,6 +147,9 @@ const LeaveTab: React.FC<LeaveTabProps> = ({ employees, companyInfo, onUpdateEmp
                                      <div>
                                          <p className="text-sm font-medium text-gray-800">{rec.type} ({rec.days} days)</p>
                                          <p className="text-xs text-gray-500">{rec.startDate} to {rec.endDate}</p>
+                                         {rec.note && (
+                                             <p className="text-xs text-gray-500 mt-1"><span className="font-semibold text-gray-600">Note:</span> {rec.note}</p>
+                                         )}
                                      </div>
                                      <button onClick={() => handleDeleteLeave(rec.id)} className="p-1 text-gray-400 hover:text-red-600">
                                          <TrashIcon className="h-4 w-4" />
@@ -171,6 +179,16 @@ const LeaveTab: React.FC<LeaveTabProps> = ({ employees, companyInfo, onUpdateEmp
                             </div>
                             <div className="text-center font-medium text-gray-600">
                                 Calculated Working Days: <span className="font-bold text-gray-800">{newLeave.days}</span>
+                            </div>
+                            <div>
+                                <label className="text-sm font-medium text-gray-700">Leave Note</label>
+                                <textarea
+                                    value={newLeave.note}
+                                    onChange={e => setNewLeave({...newLeave, note: e.target.value })}
+                                    className="w-full mt-1 p-2 border rounded-md"
+                                    rows={3}
+                                    placeholder="Optional note for this leave entry"
+                                />
                             </div>
                             <button type="submit" className="w-full flex items-center justify-center px-4 py-2 bg-gray-800 text-white font-semibold rounded-lg hover:bg-gray-900">
                                 <PlusIcon className="mr-2" /> Add Record

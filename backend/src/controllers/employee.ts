@@ -132,8 +132,8 @@ export const createEmployee = async (req: Request, res: Response) => {
         }
 
         await client.query(
-          `INSERT INTO users (email, password, role, first_name, last_name, employee_id, department, position, join_date)
-           VALUES ($1, $2, 'employee', $3, $4, $5, $6, $7, $8)
+          `INSERT INTO users (email, password, role, first_name, last_name, employee_id, department, position, join_date, photo_url)
+           VALUES ($1, $2, 'employee', $3, $4, $5, $6, $7, $8, $9)
            ON CONFLICT (email) DO UPDATE
              SET password = COALESCE(EXCLUDED.password, users.password),
                  first_name = EXCLUDED.first_name,
@@ -141,7 +141,8 @@ export const createEmployee = async (req: Request, res: Response) => {
                  employee_id = EXCLUDED.employee_id,
                  department = EXCLUDED.department,
                  position = EXCLUDED.position,
-                 join_date = COALESCE(EXCLUDED.join_date, users.join_date)
+                 join_date = COALESCE(EXCLUDED.join_date, users.join_date),
+                 photo_url = COALESCE(EXCLUDED.photo_url, users.photo_url)
           `,
           [
             emailToPersist,
@@ -152,6 +153,7 @@ export const createEmployee = async (req: Request, res: Response) => {
             department,
             position,
             joinDate,
+            photo_url || null,
           ]
         );
       }
@@ -362,8 +364,8 @@ export const updateEmployee = async (req: Request, res: Response) => {
           logger.warn('Skipping user upsert due to missing password', { employeeId: employeeid, email: targetEmail });
         } else {
         await client.query(
-          `INSERT INTO users (email, password, role, first_name, last_name, employee_id, department, position, join_date)
-           VALUES ($1, $2, 'employee', $3, $4, $5, $6, $7, $8)
+          `INSERT INTO users (email, password, role, first_name, last_name, employee_id, department, position, join_date, photo_url)
+           VALUES ($1, $2, 'employee', $3, $4, $5, $6, $7, $8, $9)
            ON CONFLICT (email) DO UPDATE
              SET password = COALESCE(EXCLUDED.password, users.password),
                  first_name = EXCLUDED.first_name,
@@ -371,7 +373,8 @@ export const updateEmployee = async (req: Request, res: Response) => {
                  employee_id = EXCLUDED.employee_id,
                  department = EXCLUDED.department,
                  position = EXCLUDED.position,
-                 join_date = COALESCE(EXCLUDED.join_date, users.join_date)
+                 join_date = COALESCE(EXCLUDED.join_date, users.join_date),
+                 photo_url = COALESCE(EXCLUDED.photo_url, users.photo_url)
           `,
           [
             targetEmail,
@@ -382,6 +385,7 @@ export const updateEmployee = async (req: Request, res: Response) => {
             department || updatedEmployee.department || existingEmployee.department,
             position || updatedEmployee.position || existingEmployee.position,
             joinDate,
+            photo_url || updatedEmployee.photo_url || existingEmployee.photo_url || null,
           ]
         );
 
