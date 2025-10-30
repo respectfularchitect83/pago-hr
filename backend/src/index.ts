@@ -27,8 +27,8 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-// Explicitly handle preflight OPTIONS requests for all routes
-app.options('*', cors({
+// Explicitly handle preflight OPTIONS requests for all routes (Express 5 fix)
+app.options('/*', cors({
   origin: allowedOrigin,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
