@@ -26,97 +26,123 @@ const PayslipDetail: React.FC<PayslipDetailProps> = ({ payslip, employeeName, po
   const netPay = totalEarnings - totalDeductions;
   
   const handleDownloadPdf = async () => {
-    const originalElement = document.getElementById('payslip-content');
-    if (!originalElement) {
-        console.error("Payslip content element not found!");
-        return;
-    }
-    
-    setIsGenerating(true);
+  const originalElement = document.getElementById('payslip-content');
+  if (!originalElement) {
+    console.error("Payslip content element not found!");
+    return;
+  }
+  if (!window.html2canvas) {
+    console.error("html2canvas is not available on window.");
+    alert("Preview tools failed to load. Please refresh and try again.");
+    return;
+  }
 
-    // 1. Clone the node to create an isolated element for rendering
-    const clone = originalElement.cloneNode(true) as HTMLElement;
+  // Open the preview tab synchronously so browsers treat it as a user gesture
+  const previewWindow = window.open('', '_blank');
+  if (!previewWindow) {
+    alert("We couldn't open a preview tab. Please allow pop-ups and try again.");
+    return;
+  }
 
-    // 2. Style the clone to be rendered off-screen but with a defined size
-    clone.style.position = 'absolute';
-    clone.style.top = '0';
-    clone.style.left = '-9999px';
-    clone.style.width = `${originalElement.offsetWidth}px`;
-    clone.style.height = 'auto';
-    clone.classList.remove('animate-fade-in'); // Remove animation that could interfere
-    
-    const actionsClone = clone.querySelector('#payslip-actions');
-    if (actionsClone) (actionsClone as HTMLElement).style.display = 'none';
+  previewWindow.document.write(`
+    <html>
+      <head>
+        <title>Payslip Preview - ${payslip.payDate}</title>
+        <style>
+          body { margin: 0; background-color: #f0f0f0; display: flex; justify-content: center; align-items: start; padding: 40px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; }
+          .loading { font-size: 16px; }
+        </style>
+      </head>
+      <body>
+        <div class="loading">Preparing payslip preview...</div>
+      </body>
+    </html>
+  `);
+  previewWindow.document.close();
 
-    document.body.appendChild(clone);
+  setIsGenerating(true);
 
-    // Helper function to wait for all images within an element to load
-    const waitForImages = (element: HTMLElement) => {
-        const images = Array.from(element.getElementsByTagName('img'));
-        const promises = images.map(img => {
-            return new Promise((resolve) => {
-                if (img.complete && img.naturalHeight !== 0) {
-                    resolve(true);
-                } else {
-                    img.onload = () => resolve(true);
-                    img.onerror = () => {
-                        console.warn(`Could not load image: ${img.src}`);
-                        resolve(false); // Resolve even on error to not break the process
-                    };
-                }
-            });
-        });
-        return Promise.all(promises);
-    };
+  // 1. Clone the node to create an isolated element for rendering
+  const clone = originalElement.cloneNode(true) as HTMLElement;
 
-    try {
-        // 3. Wait for images and give a final tick for rendering
-        await waitForImages(clone);
-        await new Promise(resolve => setTimeout(resolve, 50));
+  // 2. Style the clone to be rendered off-screen but with a defined size
+  clone.style.position = 'absolute';
+  clone.style.top = '0';
+  clone.style.left = '-9999px';
+  clone.style.width = `${originalElement.offsetWidth}px`;
+  clone.style.height = 'auto';
+  clone.classList.remove('animate-fade-in'); // Remove animation that could interfere
 
-        // 4. Run html2canvas on the prepared clone
-        const canvas = await window.html2canvas(clone, {
-            scale: 2,
-            useCORS: true,
-            windowWidth: clone.scrollWidth,
-            windowHeight: clone.scrollHeight,
-        });
+  const actionsClone = clone.querySelector('#payslip-actions');
+  if (actionsClone) (actionsClone as HTMLElement).style.display = 'none';
 
-        const imgData = canvas.toDataURL('image/png');
-        if (imgData.length < 100) { // Check for a blank image
-            throw new Error("Generated image data is too small, likely blank.");
-        }
-        
-        // 5. Open the generated image in a new tab
-        const newWindow = window.open();
-        if (newWindow) {
-            newWindow.document.write(`
-                <html>
-                    <head>
-                        <title>Payslip Preview - ${payslip.payDate}</title>
-                        <style>
-                            body { margin: 0; background-color: #f0f0f0; display: flex; justify-content: center; align-items: start; padding: 20px; }
-                            img { max-width: 100%; height: auto; box-shadow: 0 0 15px rgba(0,0,0,0.2); }
-                        </style>
-                    </head>
-                    <body>
-                        <img src="${imgData}" alt="Payslip for ${employeeName}" />
-                    </body>
-                </html>
-            `);
-            newWindow.document.close();
+  document.body.appendChild(clone);
+
+  // Helper function to wait for all images within an element to load
+  const waitForImages = (element: HTMLElement) => {
+    const images = Array.from(element.getElementsByTagName('img'));
+    const promises = images.map(img => {
+      return new Promise((resolve) => {
+        if (img.complete && img.naturalHeight !== 0) {
+          resolve(true);
         } else {
-             throw new Error("Could not open a new tab. Please check your browser's pop-up settings.");
+          img.onload = () => resolve(true);
+          img.onerror = () => {
+            console.warn(`Could not load image: ${img.src}`);
+            resolve(false); // Resolve even on error to not break the process
+          };
         }
+      });
+    });
+    return Promise.all(promises);
+  };
 
-    } catch (err) {
-        console.error("Preview generation failed:", err);
-        alert("Sorry, there was an error generating the preview. Please try again.");
-    } finally {
-        // 6. Cleanup by removing the clone and resetting the loading state
-        document.body.removeChild(clone);
-        setIsGenerating(false);
+  try {
+    // 3. Wait for images and give a final tick for rendering
+    await waitForImages(clone);
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // 4. Run html2canvas on the prepared clone
+    const canvas = await window.html2canvas(clone, {
+      scale: 2,
+      useCORS: true,
+      windowWidth: clone.scrollWidth,
+      windowHeight: clone.scrollHeight,
+    });
+
+    const imgData = canvas.toDataURL('image/png');
+    if (imgData.length < 100) { // Check for a blank image
+      throw new Error("Generated image data is too small, likely blank.");
     }
+
+    previewWindow.document.open();
+    previewWindow.document.write(`
+      <html>
+        <head>
+          <title>Payslip Preview - ${payslip.payDate}</title>
+          <style>
+            body { margin: 0; background-color: #f0f0f0; display: flex; justify-content: center; align-items: start; padding: 20px; }
+            img { max-width: 100%; height: auto; box-shadow: 0 0 15px rgba(0,0,0,0.2); }
+          </style>
+        </head>
+        <body>
+          <img src="${imgData}" alt="Payslip for ${employeeName}" />
+        </body>
+      </html>
+    `);
+    previewWindow.document.close();
+
+  } catch (err) {
+    console.error("Preview generation failed:", err);
+    if (!previewWindow.closed) {
+      previewWindow.document.body.innerHTML = '<p style="font-size:16px; color:#b91c1c;">We could not generate your payslip preview. Please try again.</p>';
+    }
+    alert("Sorry, there was an error generating the preview. Please try again.");
+  } finally {
+    // 6. Cleanup by removing the clone and resetting the loading state
+    document.body.removeChild(clone);
+    setIsGenerating(false);
+  }
   };
 
 
