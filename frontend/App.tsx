@@ -8,38 +8,110 @@ interface ImportMeta {
 const API_URL = import.meta.env.VITE_API_URL;
 
 import React, { useState, useCallback } from 'react';
-// FIX: Imported PublicEmployeeInfo to resolve TypeScript error.
-import { Employee, Company, HRUser, Message, PublicEmployeeInfo } from './types';
+import { Employee, Company, HRUser, Message } from './types';
 // import { employees as initialEmployees, companyData, hrUsers as initialHrUsers } from './data/mockData';
 import LoginScreen from './components/LoginScreen';
 import PayslipDashboard from './components/PayslipDashboard';
 import AdminLoginScreen from './components/admin/AdminLoginScreen';
 import AdminDashboard from './components/admin/AdminDashboard';
 
+const DEFAULT_PHOTO_URL = 'https://i.pravatar.cc/150';
+
+const defaultCompanyInfo: Company = {
+  name: 'PAGO Payroll Solutions',
+  address: '',
+  country: 'South Africa',
+  branches: [],
+  leaveSettings: {},
+};
+
+const mapEmployeeFromApi = (raw: any): Employee => {
+  const fullName = raw?.name ?? [raw?.firstname, raw?.lastname].filter(Boolean).join(' ').trim();
+  const bankDetails = raw?.bankdetails ?? raw?.bankDetails ?? { bankName: '', accountNumber: '' };
+
+  return {
+    id: raw?.id ? String(raw.id) : raw?.employeeid ?? `emp-${Date.now()}`,
+    name: fullName || 'Unknown Employee',
+    position: raw?.position ?? '',
+    payslips: raw?.payslips ?? [],
+    photoUrl: raw?.photoUrl ?? raw?.photo_url ?? DEFAULT_PHOTO_URL,
+    startDate: (raw?.startdate ?? raw?.startDate ?? new Date().toISOString().split('T')[0]),
+    employeeId: (raw?.employeeid ?? raw?.employeeId ?? '').toString(),
+    taxNumber: raw?.taxnumber ?? raw?.taxNumber ?? '',
+    idNumber: raw?.idnumber ?? raw?.idNumber ?? '',
+    phoneNumber: raw?.phonenumber ?? raw?.phoneNumber ?? '',
+    address: raw?.address ?? '',
+    bankDetails,
+    taxDocuments: raw?.taxDocuments ?? [],
+    status: raw?.status === 'Inactive' ? 'Inactive' : 'Active',
+    terminationDate: raw?.terminationDate ?? undefined,
+    basicSalary: Number(raw?.basicsalary ?? raw?.basicSalary ?? 0),
+    appointmentHours: Number(raw?.appointmenthours ?? raw?.appointmentHours ?? 190),
+    branch: raw?.branch ?? raw?.department ?? '',
+    gender: raw?.gender === 'Male' ? 'Male' : 'Female',
+    leaveRecords: raw?.leaveRecords ?? [],
+  };
+};
+
+const mapEmployeeToApiPayload = (employee: Employee) => {
+  const [firstName, ...rest] = employee.name.split(' ');
+  return {
+    employeeid: employee.employeeId,
+    firstname: firstName || employee.name,
+    lastname: rest.join(' ') || employee.name,
+    email: '',
+    status: employee.status,
+    position: employee.position,
+    department: employee.branch,
+  };
+};
+
+const mapHrUserFromApi = (user: any): HRUser => ({
+  id: user?.id ? String(user.id) : (user?.email ?? user?.username ?? 'user'),
+  username: user?.email ?? user?.username ?? 'user',
+  photoUrl: user?.photo_url ?? user?.photoUrl ?? undefined,
+});
+
 const App: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [companyInfo, setCompanyInfo] = useState<Company | null>(null);
+  const [companyInfo, setCompanyInfo] = useState<Company>(defaultCompanyInfo);
   const [hrUsers, setHrUsers] = useState<HRUser[]>([]);
+  const [authToken, setAuthToken] = useState<string | null>(null);
   // Fetch data from backend API on mount
   React.useEffect(() => {
+    if (!authToken) {
+      return;
+    }
+
+    const authHeaders = { Authorization: `Bearer ${authToken}` };
+
     // Fetch employees
-  fetch(`${API_URL}/api/employees`)
-      .then(res => res.json())
-      .then(data => setEmployees(data))
+    fetch(`${API_URL}/api/employees`, { headers: authHeaders })
+      .then(res => res.ok ? res.json() : Promise.reject(res))
+      .then(data => setEmployees(Array.isArray(data) ? data.map(mapEmployeeFromApi) : []))
       .catch(() => setEmployees([]));
 
-    // Fetch company info
-  fetch(`${API_URL}/api/company`)
-      .then(res => res.json())
-      .then(data => setCompanyInfo(data))
-      .catch(() => setCompanyInfo(null));
+    // Fetch company info (optional endpoint; tolerate failure)
+    fetch(`${API_URL}/api/company`, { headers: authHeaders })
+      .then(res => res.ok ? res.json() : Promise.reject(res))
+      .then(data => setCompanyInfo({ ...defaultCompanyInfo, ...data }))
+      .catch(() => setCompanyInfo(defaultCompanyInfo));
 
     // Fetch HR users
-  fetch(`${API_URL}/api/hr-users`)
-      .then(res => res.json())
-      .then(data => setHrUsers(data))
+    fetch(`${API_URL}/api/users`, { headers: authHeaders })
+      .then(res => res.ok ? res.json() : Promise.reject(res))
+      .then(data => {
+        if (!Array.isArray(data)) {
+          setHrUsers([]);
+          return;
+        }
+        const mappedUsers: HRUser[] = data
+          .filter((user: any) => user && ['admin', 'hr'].includes(user.role))
+          .map(mapHrUserFromApi);
+        setHrUsers(mappedUsers);
+      })
       .catch(() => setHrUsers([]));
-  }, []);
+  }, [authToken]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentUser, setCurrentUser] = useState<Employee | HRUser | null>(null);
 
@@ -56,6 +128,9 @@ const App: React.FC = () => {
       const data = await res.json();
       if (data && data.user) {
         setCurrentUser(data.user);
+        if (data.token) {
+          setAuthToken(data.token);
+        }
         return true;
       }
       return false;
@@ -75,7 +150,15 @@ const App: React.FC = () => {
       if (!res.ok) return false;
       const data = await res.json();
       if (data && data.user && data.user.role === 'admin') {
-        setCurrentUser(data.user);
+        const mappedAdmin: HRUser = {
+          id: data.user.id ? String(data.user.id) : username,
+          username: data.user.email ?? username,
+          photoUrl: data.user.photoUrl ?? data.user.photo_url,
+        };
+        setCurrentUser(mappedAdmin);
+        if (data.token) {
+          setAuthToken(data.token);
+        }
         return true;
       }
       return false;
@@ -86,58 +169,70 @@ const App: React.FC = () => {
 
   const handleLogout = useCallback(() => {
     setCurrentUser(null);
+    setAuthToken(null);
+    setEmployees([]);
+    setCompanyInfo(defaultCompanyInfo);
+    setHrUsers([]);
   }, []);
   
   const handleUpdateEmployee = async (updatedEmployee: Employee) => {
+  if (!authToken) return;
+  const payload = mapEmployeeToApiPayload(updatedEmployee);
   await fetch(`${API_URL}/api/employees/${updatedEmployee.id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updatedEmployee),
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify(payload),
     });
     setEmployees(prevEmployees => prevEmployees.map(emp => emp.id === updatedEmployee.id ? updatedEmployee : emp));
   };
 
   const handleAddNewEmployee = async (newEmployeeData: Omit<Employee, 'id'>) => {
+  if (!authToken) return;
+  const payload = mapEmployeeToApiPayload(newEmployeeData as Employee);
   const res = await fetch(`${API_URL}/api/employees`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newEmployeeData),
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify(payload),
     });
     const newEmployee = await res.json();
-    setEmployees(prev => [...prev, newEmployee]);
+    setEmployees(prev => [...prev, mapEmployeeFromApi(newEmployee)]);
   };
 
   const handleDeleteEmployee = async (employeeId: string) => {
     if (window.confirm('Are you sure you want to delete this employee? This action cannot be undone.')) {
-  await fetch(`${API_URL}/api/employees/${employeeId}`, { method: 'DELETE' });
+  if (!authToken) return;
+  await fetch(`${API_URL}/api/employees/${employeeId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${authToken}` } });
       setEmployees(prev => prev.filter(emp => emp.id !== employeeId));
     }
   };
 
   const handleUpdateCompanyInfo = async (updatedCompanyInfo: Company) => {
+  if (!authToken) return;
   await fetch(`${API_URL}/api/company`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
       body: JSON.stringify(updatedCompanyInfo),
     });
     setCompanyInfo(updatedCompanyInfo);
   };
 
   const handleAddNewHRUser = async (newUserData: Omit<HRUser, 'id'>) => {
-  const res = await fetch(`${API_URL}/api/hr-users`, {
+  if (!authToken) return;
+  const res = await fetch(`${API_URL}/api/users`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
       body: JSON.stringify(newUserData),
     });
     const newUser = await res.json();
-    setHrUsers(prev => [...prev, newUser]);
+    setHrUsers(prev => [...prev, mapHrUserFromApi(newUser)]);
     alert('New HR user added successfully!');
   };
 
   const handleUpdateHRUser = async (updatedUser: HRUser) => {
-  await fetch(`${API_URL}/api/hr-users/${updatedUser.id}`, {
+  if (!authToken) return;
+  await fetch(`${API_URL}/api/users/${updatedUser.id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
       body: JSON.stringify(updatedUser),
     });
     setHrUsers(prev => prev.map(user => user.id === updatedUser.id ? updatedUser : user));
