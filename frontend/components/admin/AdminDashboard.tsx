@@ -24,6 +24,7 @@ interface AdminDashboardProps {
   onUpdateCompanyInfo: (company: Company) => void;
   onAddNewHRUser: (newUser: Omit<HRUser, 'id'>) => void;
   onUpdateHRUser: (user: HRUser) => void;
+  onDeleteHRUser: (userId: string) => void;
   onUpdateMessageStatus: (messageId: string, status: 'read' | 'unread') => void;
   onSendMessage: (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => void;
 }
@@ -63,6 +64,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     onUpdateCompanyInfo,
     onAddNewHRUser,
     onUpdateHRUser,
+  onDeleteHRUser,
     onUpdateMessageStatus,
     onSendMessage,
 }) => {
@@ -103,7 +105,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
 
     if (adminView === 'hrUsers') {
-      return <HRUsersTab users={hrUsers} onAddUser={onAddNewHRUser} onUpdateUser={onUpdateHRUser} />;
+      return <HRUsersTab users={hrUsers} onAddUser={onAddNewHRUser} onUpdateUser={onUpdateHRUser} onDeleteUser={onDeleteHRUser} />;
     }
     
     if (adminView === 'reports') {

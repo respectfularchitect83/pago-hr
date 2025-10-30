@@ -325,6 +325,20 @@ const App: React.FC = () => {
     alert('HR user updated successfully!');
   };
 
+  const handleDeleteHRUser = async (userId: string) => {
+  if (!authToken) return;
+    const res = await fetch(`${API_URL}/api/users/${userId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!res.ok) {
+      alert('Failed to delete HR user. Please try again.');
+      return;
+    }
+    setHrUsers(prev => prev.filter(user => user.id !== userId));
+    alert('HR user deleted successfully!');
+  };
+
   const handleSendMessage = (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => {
     const newMessage: Message = {
         ...message,
@@ -365,6 +379,7 @@ const App: React.FC = () => {
                 onUpdateCompanyInfo={handleUpdateCompanyInfo}
                 onAddNewHRUser={handleAddNewHRUser}
                 onUpdateHRUser={handleUpdateHRUser}
+                onDeleteHRUser={handleDeleteHRUser}
                 onUpdateMessageStatus={handleUpdateMessageStatus}
                 onSendMessage={handleSendMessage}
                 currentUser={currentUser}

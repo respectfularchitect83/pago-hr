@@ -101,6 +101,10 @@ const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, com
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+        if (file.size > 2 * 1024 * 1024) {
+            setFormError('Profile photo must be smaller than 2MB.');
+            return;
+        }
         const reader = new FileReader();
         reader.onloadend = () => {
             handleFieldChange('photoUrl', reader.result as string);

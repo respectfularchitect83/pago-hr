@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Company, SupportedCountry, Employee, LeaveType } from '../../types';
 import EditableField from './EditableField';
 import { countryRegulations } from '../../data/regulations';
@@ -19,8 +19,13 @@ const CompanySettings: React.FC<CompanySettingsProps> = ({ company, onSave, empl
     const [localCompany, setLocalCompany] = useState<Company>(company);
     const [newBranch, setNewBranch] = useState('');
     const logoInputRef = useRef<HTMLInputElement>(null);
+    const [logoError, setLogoError] = useState<string | null>(null);
     
     const regulations = countryRegulations[localCompany.country];
+
+    useEffect(() => {
+        setLocalCompany(company);
+    }, [company]);
     const formatCurrency = (amount: number) => new Intl.NumberFormat().format(amount);
 
     const handleFieldChange = (field: keyof Company, value: string | { [key in LeaveType]?: number }) => {
@@ -89,9 +94,14 @@ const CompanySettings: React.FC<CompanySettingsProps> = ({ company, onSave, empl
     const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
+            if (file.size > 2 * 1024 * 1024) {
+                setLogoError('Logo must be smaller than 2MB.');
+                return;
+            }
             const reader = new FileReader();
             reader.onloadend = () => {
                 handleFieldChange('logoUrl', reader.result as string);
+                setLogoError(null);
             };
             reader.readAsDataURL(file);
         }
@@ -147,6 +157,7 @@ const CompanySettings: React.FC<CompanySettingsProps> = ({ company, onSave, empl
                                 className="hidden"
                             />
                         </div>
+                        {logoError && <p className="mt-2 text-sm text-red-600">{logoError}</p>}
                     </div>
                     <div>
                         <label htmlFor="country" className="block text-sm font-medium text-gray-700">Country of Operation</label>

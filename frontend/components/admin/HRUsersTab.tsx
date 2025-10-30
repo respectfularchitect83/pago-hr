@@ -4,16 +4,18 @@ import React, { useState, useRef, useEffect } from 'react';
 import { HRUser } from '../../types';
 import UserPlusIcon from '../icons/UserPlusIcon';
 import PencilIcon from '../icons/PencilIcon';
+import TrashIcon from '../icons/TrashIcon';
 
 interface HRUsersTabProps {
     users: HRUser[];
     onAddUser: (newUser: Omit<HRUser, 'id'>) => void;
     onUpdateUser: (user: HRUser) => void;
+    onDeleteUser: (userId: string) => void;
 }
 
 type View = 'list' | 'add' | 'edit';
 
-const HRUsersTab: React.FC<HRUsersTabProps> = ({ users, onAddUser, onUpdateUser }) => {
+const HRUsersTab: React.FC<HRUsersTabProps> = ({ users, onAddUser, onUpdateUser, onDeleteUser }) => {
     const [view, setView] = useState<View>('list');
     const [selectedUser, setSelectedUser] = useState<HRUser | null>(null);
     const [username, setUsername] = useState('');
@@ -147,17 +149,32 @@ const HRUsersTab: React.FC<HRUsersTabProps> = ({ users, onAddUser, onUpdateUser 
                                     alt={user.username} 
                                     className="h-12 w-12 rounded-full mr-4 object-cover" 
                                 />
-                                <p className="font-medium text-gray-800 text-lg">{user.username}</p>
+                                <div>
+                                    <p className="font-medium text-gray-800 text-lg">{user.username}</p>
+                                    <p className="text-xs text-gray-500 uppercase tracking-wide">{user.role || 'hr'}</p>
+                                </div>
                             </div>
-                            <button
-                                onClick={() => {
-                                    setSelectedUser(user);
-                                    setView('edit');
-                                }}
-                                className="flex items-center px-3 py-2 bg-white text-gray-700 font-semibold rounded-lg border hover:bg-gray-100 text-sm"
-                            >
-                                <PencilIcon className="mr-2 h-4 w-4" /> Edit
-                            </button>
+                            <div className="flex items-center space-x-2">
+                                <button
+                                    onClick={() => {
+                                        setSelectedUser(user);
+                                        setView('edit');
+                                    }}
+                                    className="flex items-center px-3 py-2 bg-white text-gray-700 font-semibold rounded-lg border hover:bg-gray-100 text-sm"
+                                >
+                                    <PencilIcon className="mr-2 h-4 w-4" /> Edit
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (window.confirm(`Delete ${user.username}? This cannot be undone.`)) {
+                                            onDeleteUser(user.id);
+                                        }
+                                    }}
+                                    className="flex items-center px-3 py-2 bg-red-50 text-red-600 font-semibold rounded-lg border border-red-200 hover:bg-red-100 text-sm"
+                                >
+                                    <TrashIcon className="mr-2 h-4 w-4" /> Delete
+                                </button>
+                            </div>
                         </div>
                     ))}
                 </div>

@@ -49,7 +49,8 @@ Sentry.init({
   profilesSampleRate: 1.0,
 });
 // Sentry request and tracing handlers are not available in this SDK version; use error handler if needed
-app.use(express.json());
+app.use(express.json({ limit: process.env.BODY_LIMIT || '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: process.env.BODY_LIMIT || '10mb' }));
 app.use(requestLogger);
 
 // Prometheus metrics endpoint
