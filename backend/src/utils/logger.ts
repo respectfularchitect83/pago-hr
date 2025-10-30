@@ -13,24 +13,12 @@ const logger = winston.createLogger({
     winston.format.json()
   ),
   transports: [
-    // Console logging for development
+    // Console logging for all environments (Vercel compatible)
     new winston.transports.Console({
       format: winston.format.combine(
         winston.format.colorize(),
         winston.format.simple()
       )
-    }),
-    // File logging for production
-    new winston.transports.File({ 
-      filename: 'logs/error.log', 
-      level: 'error',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-    }),
-    new winston.transports.File({ 
-      filename: 'logs/combined.log',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
     }),
     // Better Stack (Logtail) transport for cloud logging
     new LogtailTransport(logtail)
