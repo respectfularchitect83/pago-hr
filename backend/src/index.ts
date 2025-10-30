@@ -10,6 +10,7 @@ import authRoutes from './routes/auth';
 import employeeRoutes from './routes/employees';
 import payslipRoutes from './routes/payslips';
 import leaveRoutes from './routes/leave';
+import companyRoutes from './routes/company';
 
 // Load environment variables
 config();
@@ -69,6 +70,7 @@ app.use('/api/employees', employeeRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/payslips', payslipRoutes);
 app.use('/api/leave', leaveRoutes);
+app.use('/api/company', companyRoutes);
 // Add Sentry error handler if needed, or use expressErrorHandler/setupExpressErrorHandler if available
 // If you want to capture errors, use:
 // import { expressErrorHandler } from '@sentry/node';
