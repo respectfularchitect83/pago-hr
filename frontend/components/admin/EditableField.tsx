@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatDateOnly } from '../../utils/date';
 
 interface EditableFieldProps {
   label: string;
@@ -16,7 +17,10 @@ const EditableField: React.FC<EditableFieldProps> = ({ label, value, onChange, t
   };
   
   if (!isEditing) {
-    const displayValue = type === 'password' && value ? '********' : value || '-';
+    let displayValue = type === 'password' && value ? '********' : value || '-';
+    if (type === 'date' && value) {
+      displayValue = formatDateOnly(value) || '-';
+    }
     return (
         <div>
             <label className="block text-sm font-medium text-gray-500">{label}</label>

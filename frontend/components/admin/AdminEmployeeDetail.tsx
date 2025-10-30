@@ -7,6 +7,7 @@ import PlusIcon from '../icons/PlusIcon';
 import PencilIcon from '../icons/PencilIcon';
 import TrashIcon from '../icons/TrashIcon';
 import { bankData } from '../../data/mockData';
+import { formatDateOnly } from '../../utils/date';
 
 interface AdminEmployeeDetailProps {
   employee: Employee;
@@ -20,12 +21,16 @@ interface AdminEmployeeDetailProps {
   isNew?: boolean;
 }
 
+const normalizeEmployeeData = (emp: Employee): Employee => ({
+    ...emp,
+    startDate: formatDateOnly(emp.startDate),
+    terminationDate: emp.terminationDate ? formatDateOnly(emp.terminationDate) : emp.terminationDate,
+    payslips: [...(emp.payslips || [])],
+    leaveRecords: [...(emp.leaveRecords || [])],
+});
+
 const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, companyInfo, onBack, onSave, onCreatePayslip, onUpdatePayslip, onDeletePayslip, onDeleteEmployee, isNew = false }) => {
-    const [localEmployee, setLocalEmployee] = useState<Employee>({
-        ...employee,
-        payslips: [...(employee.payslips || [])],
-        leaveRecords: [...(employee.leaveRecords || [])],
-    });
+    const [localEmployee, setLocalEmployee] = useState<Employee>(normalizeEmployeeData(employee));
     const [isEditing, setIsEditing] = useState(isNew);
   const [isPayslipEditorOpen, setIsPayslipEditorOpen] = useState(false);
   const [editingPayslip, setEditingPayslip] = useState<Payslip | null>(null);
@@ -35,11 +40,7 @@ const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, com
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setLocalEmployee({
-        ...employee,
-        payslips: [...(employee.payslips || [])],
-        leaveRecords: [...(employee.leaveRecords || [])],
-    });
+    setLocalEmployee(normalizeEmployeeData(employee));
     if (!isNew) {
         setIsEditing(false);
     }
@@ -61,7 +62,9 @@ const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, com
         }));
     } else {
         let finalValue: string | number | 'Active' | 'Inactive' | 'Male' | 'Female' = value;
-        if (field === 'basicSalary' || field === 'appointmentHours') {
+        if (field === 'startDate' || field === 'terminationDate') {
+            finalValue = formatDateOnly(value as string);
+        } else if (field === 'basicSalary' || field === 'appointmentHours') {
             finalValue = parseFloat(value as string) || 0;
         }
 
@@ -439,18 +442,23 @@ const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, com
                 </button>
             </div>
             <div className="space-y-2">
-                {(localEmployee.payslips || []).sort((a,b) => new Date(b.payDate).getTime() - new Date(a.payDate).getTime()).map(p => (
+                {(localEmployee.payslips || []).sort((a,b) => new Date(b.payDate).getTime() - new Date(a.payDate).getTime()).map(p => {
+                    const payDate = formatDateOnly(p.payDate);
+                    const periodStart = formatDateOnly(p.payPeriodStart);
+                    const periodEnd = formatDateOnly(p.payPeriodEnd);
+                    return (
                     <div key={p.id ?? `${p.payDate}-${p.payPeriodStart}` } className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <div>
-                            <p className="font-medium text-gray-800">Pay Date: {p.payDate}</p>
-                            <p className="text-sm text-gray-600">Period: {p.payPeriodStart} to {p.payPeriodEnd}</p>
+                            <p className="font-medium text-gray-800">Pay Date: {payDate}</p>
+                            <p className="text-sm text-gray-600">Period: {periodStart} to {periodEnd}</p>
                         </div>
                         <div className="flex items-center space-x-3">
                             <button onClick={() => handleEditPayslip(p)} className="p-2 text-gray-500 hover:text-gray-800"><PencilIcon /></button>
                             <button onClick={() => handleDeletePayslip(p.id)} className="p-2 text-gray-500 hover:text-gray-800"><TrashIcon /></button>
                         </div>
                     </div>
-                ))}
+                    );
+                })}
             </div>
         </div>
       )}

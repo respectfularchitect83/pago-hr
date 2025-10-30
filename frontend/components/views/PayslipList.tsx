@@ -3,6 +3,7 @@ import { Employee, Payslip, Company } from '../../types';
 import SearchIcon from '../icons/SearchIcon';
 import DocumentTextIcon from '../icons/DocumentTextIcon';
 import { formatCurrency } from '../../utils/payrollCalculations';
+import { formatDateOnly } from '../../utils/date';
 
 interface PayslipListProps {
     employee: Employee;
@@ -24,10 +25,13 @@ const PayslipList: React.FC<PayslipListProps> = ({ employee, companyInfo, onSele
         .filter(p => {
             const term = searchTerm.toLowerCase();
             if (!term) return true;
+            const payDate = formatDateOnly(p.payDate).toLowerCase();
+            const periodStart = formatDateOnly(p.payPeriodStart).toLowerCase();
+            const periodEnd = formatDateOnly(p.payPeriodEnd).toLowerCase();
             return (
-                p.payPeriodStart.includes(term) ||
-                p.payPeriodEnd.includes(term) ||
-                p.payDate.includes(term)
+                periodStart.includes(term) ||
+                periodEnd.includes(term) ||
+                payDate.includes(term)
             );
         })
         .sort((a, b) => new Date(b.payDate).getTime() - new Date(a.payDate).getTime());
@@ -66,8 +70,8 @@ const PayslipList: React.FC<PayslipListProps> = ({ employee, companyInfo, onSele
                                     <DocumentTextIcon/>
                                 </div>
                                 <div>
-                                    <p className="font-semibold text-gray-800">{`Pay Period: ${payslip.payPeriodStart} to ${payslip.payPeriodEnd}`}</p>
-                                    <p className="text-sm text-gray-500">Pay Date: {payslip.payDate}</p>
+                                    <p className="font-semibold text-gray-800">{`Pay Period: ${formatDateOnly(payslip.payPeriodStart)} to ${formatDateOnly(payslip.payPeriodEnd)}`}</p>
+                                    <p className="text-sm text-gray-500">Pay Date: {formatDateOnly(payslip.payDate)}</p>
                                 </div>
                             </div>
                             <span className="font-semibold text-gray-800">{formatCurrency(calculateNetPay(payslip), companyInfo.country)}</span>

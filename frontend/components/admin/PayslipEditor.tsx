@@ -7,6 +7,12 @@ import WandIcon from '../icons/WandIcon';
 import { countryRegulations } from '../../data/regulations';
 import { calculateTax, calculateSocialSecurity, formatCurrency } from '../../utils/payrollCalculations';
 
+const toIsoDate = (date: Date) => {
+    const offsetMinutes = date.getTimezoneOffset();
+    const localTime = new Date(date.getTime() - offsetMinutes * 60000);
+    return localTime.toISOString().split('T')[0];
+};
+
 interface PayslipEditorProps {
     payslip: Payslip | null;
     employee: Employee;
@@ -34,9 +40,8 @@ const PayslipEditor: React.FC<PayslipEditorProps> = ({ payslip, employee, compan
         const today = new Date();
         const year = today.getFullYear();
         const month = today.getMonth();
-        const firstDay = new Date(year, month, 1).toISOString().split('T')[0];
-        const lastDayOfMonth = new Date(year, month + 1, 0);
-        const lastDay = lastDayOfMonth.toISOString().split('T')[0];
+        const firstDay = toIsoDate(new Date(year, month, 1));
+        const lastDay = toIsoDate(new Date(year, month + 1, 0));
 
         const defaultEarnings = basicSalary && basicSalary > 0 ? basicSalary : 25000;
         const totalTaxable = defaultEarnings;
@@ -127,7 +132,22 @@ const PayslipEditor: React.FC<PayslipEditorProps> = ({ payslip, employee, compan
 
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setEditedPayslip({ ...editedPayslip, [e.target.name]: e.target.value });
+        const { name, value } = e.target;
+        if (name === 'payDate' && value) {
+            const selected = new Date(value);
+            if (!Number.isNaN(selected.getTime())) {
+                const firstDay = toIsoDate(new Date(selected.getFullYear(), selected.getMonth(), 1));
+                const lastDay = toIsoDate(new Date(selected.getFullYear(), selected.getMonth() + 1, 0));
+                setEditedPayslip(prev => ({
+                    ...prev,
+                    payDate: value,
+                    payPeriodStart: firstDay,
+                    payPeriodEnd: lastDay,
+                }));
+                return;
+            }
+        }
+        setEditedPayslip(prev => ({ ...prev, [name]: value }));
     };
 
     const handleOvertimeHoursChange = (e: React.ChangeEvent<HTMLInputElement>) => {

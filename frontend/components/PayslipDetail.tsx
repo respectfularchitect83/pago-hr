@@ -3,6 +3,7 @@ import { Payslip, Company } from '../types';
 import DownloadIcon from './icons/DownloadIcon';
 import { formatCurrency } from '../utils/payrollCalculations';
 import SpinnerIcon from './icons/SpinnerIcon';
+import { formatDateOnly } from '../utils/date';
 
 
 // This lets TypeScript know that these libraries are loaded globally
@@ -24,6 +25,9 @@ const PayslipDetail: React.FC<PayslipDetailProps> = ({ payslip, employeeName, po
   const totalEarnings = payslip.earnings.reduce((sum, item) => sum + item.amount, 0);
   const totalDeductions = payslip.deductions.reduce((sum, item) => sum + item.amount, 0);
   const netPay = totalEarnings - totalDeductions;
+  const payDate = formatDateOnly(payslip.payDate);
+  const payPeriodStart = formatDateOnly(payslip.payPeriodStart);
+  const payPeriodEnd = formatDateOnly(payslip.payPeriodEnd);
   
   const handleDownloadPdf = async () => {
   const originalElement = document.getElementById('payslip-content');
@@ -47,7 +51,7 @@ const PayslipDetail: React.FC<PayslipDetailProps> = ({ payslip, employeeName, po
   previewWindow.document.write(`
     <html>
       <head>
-        <title>Payslip Preview - ${payslip.payDate}</title>
+  <title>Payslip Preview - ${payDate}</title>
         <style>
           body { margin: 0; background-color: #f0f0f0; display: flex; justify-content: center; align-items: start; padding: 40px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; }
           .loading { font-size: 16px; }
@@ -119,7 +123,7 @@ const PayslipDetail: React.FC<PayslipDetailProps> = ({ payslip, employeeName, po
     previewWindow.document.write(`
       <html>
         <head>
-          <title>Payslip Preview - ${payslip.payDate}</title>
+          <title>Payslip Preview - ${payDate}</title>
           <style>
             body { margin: 0; background-color: #f0f0f0; display: flex; justify-content: center; align-items: start; padding: 20px; }
             img { max-width: 100%; height: auto; box-shadow: 0 0 15px rgba(0,0,0,0.2); }
@@ -156,8 +160,8 @@ const PayslipDetail: React.FC<PayslipDetailProps> = ({ payslip, employeeName, po
   return (
     <div id="payslip-content" className="p-6 text-sm animate-fade-in">
       <header className="text-center mb-6 pb-4 border-b border-gray-200 relative">
-        <h1 className="text-2xl font-bold text-gray-900">Payslip</h1>
-        <p className="text-gray-500">PayDate: {payslip.payDate}</p>
+  <h1 className="text-2xl font-bold text-gray-900">Payslip</h1>
+  <p className="text-gray-500">PayDate: {payDate}</p>
          <div id="payslip-actions" className="absolute top-0 right-0 flex items-center">
             <button id="download-button" onClick={handleDownloadPdf} disabled={isGenerating} className="p-2 text-gray-500 hover:text-gray-800 transition-colors disabled:cursor-not-allowed disabled:text-gray-400" aria-label="Open payslip preview">
                 {isGenerating ? <SpinnerIcon /> : <DownloadIcon />}
@@ -176,7 +180,7 @@ const PayslipDetail: React.FC<PayslipDetailProps> = ({ payslip, employeeName, po
           <h3 className="font-semibold text-gray-500 mb-2">Employee</h3>
           <p className="text-gray-900 font-bold">{employeeName}</p>
           <p className="text-gray-600">{position}</p>
-          <p className="text-gray-600">Pay Period: {payslip.payPeriodStart} to {payslip.payPeriodEnd}</p>
+          <p className="text-gray-600">Pay Period: {payPeriodStart} to {payPeriodEnd}</p>
         </div>
       </section>
 

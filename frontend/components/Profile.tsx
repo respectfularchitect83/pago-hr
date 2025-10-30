@@ -6,6 +6,7 @@ import PhoneIcon from './icons/PhoneIcon';
 import MapPinIcon from './icons/MapPinIcon';
 import BankIcon from './icons/BankIcon';
 import BriefcaseIcon from './icons/BriefcaseIcon';
+import { formatDateOnly } from '../utils/date';
 
 interface ProfileProps {
   employee: Employee;
@@ -43,7 +44,7 @@ const Profile: React.FC<ProfileProps> = ({ employee }) => {
             <h3 className="text-lg font-semibold text-gray-800 mb-2 px-2">Employment Details</h3>
              <div className="divide-y divide-gray-200">
                 <ProfileInfoRow icon={<BriefcaseIcon />} label="Occupation" value={employee.position} />
-                <ProfileInfoRow icon={<CalendarIcon />} label="Start Date" value={employee.startDate} />
+                <ProfileInfoRow icon={<CalendarIcon />} label="Start Date" value={formatDateOnly(employee.startDate)} />
                 <ProfileInfoRow icon={<IdentificationIcon />} label="Employee ID" value={employee.employeeId} />
                 <ProfileInfoRow icon={<IdentificationIcon />} label="Tax Number" value={employee.taxNumber} />
             </div>

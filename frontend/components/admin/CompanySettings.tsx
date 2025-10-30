@@ -27,6 +27,10 @@ const CompanySettings: React.FC<CompanySettingsProps> = ({ company, onSave, empl
         setLocalCompany(company);
     }, [company]);
     const formatCurrency = (amount: number) => new Intl.NumberFormat().format(amount);
+    const formatRate = (rate: number) => {
+        const percentage = Number((rate * 100).toFixed(2));
+        return Number.isInteger(percentage) ? `${percentage}%` : `${percentage.toFixed(2)}%`;
+    };
 
     const handleFieldChange = (field: keyof Company, value: string | { [key in LeaveType]?: number }) => {
         setLocalCompany(prev => ({ ...prev, [field]: value }));
@@ -222,7 +226,7 @@ const CompanySettings: React.FC<CompanySettingsProps> = ({ company, onSave, empl
                                         {regulations.tax.brackets.map((bracket, i) => (
                                             <tr key={i} className="border-b border-gray-100">
                                                 <td className="px-2 py-1">{`${formatCurrency(bracket.from)}${bracket.to ? ' - ' + formatCurrency(bracket.to) : '+'}`}</td>
-                                                <td className="px-2 py-1">{`${bracket.rate * 100}%`}{bracket.base > 0 && ` + ${formatCurrency(bracket.base)}`}</td>
+                                                <td className="px-2 py-1">{formatRate(bracket.rate)}{bracket.base > 0 && ` + ${formatCurrency(bracket.base)}`}</td>
                                             </tr>
                                         ))}
                                     </tbody>
