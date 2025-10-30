@@ -1,3 +1,10 @@
+// Temporary fix for TypeScript: ensure import.meta.env is typed
+interface ImportMeta {
+  readonly env: {
+    VITE_API_URL: string;
+    [key: string]: any;
+  };
+}
 const API_URL = import.meta.env.VITE_API_URL;
 
 import React, { useState, useCallback } from 'react';
