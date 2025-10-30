@@ -27,7 +27,26 @@ const defaultCompanyInfo: Company = {
 
 const mapEmployeeFromApi = (raw: any): Employee => {
   const fullName = raw?.name ?? [raw?.firstname, raw?.lastname].filter(Boolean).join(' ').trim();
-  const bankDetails = raw?.bankdetails ?? raw?.bankDetails ?? { bankName: '', accountNumber: '' };
+  const bankDetailsRaw = raw?.bankdetails ?? raw?.bankDetails;
+  let bankDetails = { bankName: '', accountNumber: '' };
+  if (bankDetailsRaw) {
+    if (typeof bankDetailsRaw === 'string') {
+      try {
+        bankDetails = JSON.parse(bankDetailsRaw);
+      } catch {
+        bankDetails = { bankName: '', accountNumber: '' };
+      }
+    } else {
+      bankDetails = bankDetailsRaw;
+    }
+  }
+  const normalizedGender = typeof raw?.gender === 'string'
+    ? raw.gender.toLowerCase() === 'male'
+      ? 'Male'
+      : raw.gender.toLowerCase() === 'female'
+        ? 'Female'
+        : 'Female'
+    : 'Female';
 
   return {
     id: raw?.id ? String(raw.id) : raw?.employeeid ?? `emp-${Date.now()}`,
@@ -45,11 +64,11 @@ const mapEmployeeFromApi = (raw: any): Employee => {
     bankDetails,
     taxDocuments: raw?.taxDocuments ?? [],
     status: raw?.status === 'Inactive' ? 'Inactive' : 'Active',
-    terminationDate: raw?.terminationDate ?? undefined,
+    terminationDate: raw?.terminationDate ?? raw?.terminationdate ?? undefined,
     basicSalary: Number(raw?.basicsalary ?? raw?.basicSalary ?? 0),
     appointmentHours: Number(raw?.appointmenthours ?? raw?.appointmentHours ?? 190),
     branch: raw?.branch ?? raw?.department ?? '',
-    gender: raw?.gender === 'Male' ? 'Male' : 'Female',
+    gender: normalizedGender,
     leaveRecords: raw?.leaveRecords ?? [],
   };
 };
@@ -66,6 +85,42 @@ const mapEmployeeToApiPayload = (employee: Employee) => {
   };
   if (employee.email) {
     payload.email = employee.email;
+  }
+  if (employee.startDate) {
+    payload.startdate = employee.startDate;
+  }
+  if (employee.taxNumber) {
+    payload.taxnumber = employee.taxNumber;
+  }
+  if (employee.idNumber) {
+    payload.idnumber = employee.idNumber;
+  }
+  if (employee.phoneNumber) {
+    payload.phonenumber = employee.phoneNumber;
+  }
+  if (employee.address) {
+    payload.address = employee.address;
+  }
+  if (employee.bankDetails) {
+    payload.bankdetails = employee.bankDetails;
+  }
+  if (typeof employee.basicSalary === 'number') {
+    payload.basicsalary = employee.basicSalary;
+  }
+  if (typeof employee.appointmentHours === 'number') {
+    payload.appointmenthours = employee.appointmentHours;
+  }
+  if (employee.branch) {
+    payload.branch = employee.branch;
+  }
+  if (employee.gender) {
+    payload.gender = employee.gender;
+  }
+  if (employee.photoUrl) {
+    payload.photo_url = employee.photoUrl;
+  }
+  if (employee.terminationDate) {
+    payload.terminationdate = employee.terminationDate;
   }
   if (employee.password) {
     payload.password = employee.password;

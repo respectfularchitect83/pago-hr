@@ -1,7 +1,7 @@
 
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
-import { User, createUser, findUserByEmail, validatePassword } from '../models/user';
+import { User, createUser, findUserByEmail, findUserByEmployeeId, validatePassword } from '../models/user';
 
 export const register = async (req: Request, res: Response) => {
   try {
@@ -60,10 +60,20 @@ export const login = async (req: Request, res: Response) => {
   try {
     // Debug: log the login request body
     console.log('LOGIN REQUEST BODY:', req.body);
-    const { email, password } = req.body;
+    const { email, employeeId, password } = req.body;
 
-    // Find user
-    const user = await findUserByEmail(email);
+    if (!email && !employeeId) {
+      return res.status(400).json({ error: 'Email or employee ID is required' });
+    }
+
+    // Find user by email first, then by employee ID if provided
+    let user: User | null = null;
+    if (email) {
+      user = await findUserByEmail(email);
+    }
+    if (!user && employeeId) {
+      user = await findUserByEmployeeId(employeeId);
+    }
     console.log('USER FROM DB:', user);
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -100,7 +110,10 @@ export const login = async (req: Request, res: Response) => {
         email: user.email,
         firstName: user.first_name,
         lastName: user.last_name,
-        role: user.role
+        role: user.role,
+        employeeId: user.employee_id,
+        department: user.department,
+        position: user.position,
       },
       token
     });

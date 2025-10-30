@@ -13,30 +13,125 @@ export const listEmployees = async (req: Request, res: Response) => {
 
 export const createEmployee = async (req: Request, res: Response) => {
   try {
-    const { employeeid, firstname, lastname, email, status, position, department, password } = req.body;
+    const {
+      employeeid,
+      firstname,
+      lastname,
+      email,
+      status,
+      position,
+      department,
+      password,
+      startdate,
+      taxnumber,
+      idnumber,
+      phonenumber,
+      address,
+      bankdetails,
+      terminationdate,
+      basicsalary,
+      appointmenthours,
+      branch,
+      gender,
+      photo_url,
+    } = req.body;
+
+    const toNumberOrNull = (value: any) => {
+      if (value === undefined || value === null || value === '') {
+        return null;
+      }
+      const parsed = Number(value);
+      return Number.isNaN(parsed) ? null : parsed;
+    };
+
+    const normalizedBankDetails = bankdetails
+      ? (typeof bankdetails === 'string' ? bankdetails : JSON.stringify(bankdetails))
+      : JSON.stringify({ bankName: '', accountNumber: '' });
+    const normalizedTerminationDate = terminationdate && terminationdate !== '' ? terminationdate : null;
+    const parsedBasicSalary = toNumberOrNull(basicsalary);
+    const parsedAppointmentHours = toNumberOrNull(appointmenthours);
+    const joinDate = startdate && startdate !== '' ? startdate : new Date().toISOString().split('T')[0];
+    const emailLower = email ? email.toLowerCase() : null;
+    const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
       const result = await client.query(
-        'INSERT INTO employees (employeeid, firstname, lastname, email, status, position, department) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-        [employeeid, firstname, lastname, email, status, position, department]
+        `INSERT INTO employees (
+            employeeid,
+            firstname,
+            lastname,
+            email,
+            status,
+            position,
+            department,
+            startdate,
+            taxnumber,
+            idnumber,
+            phonenumber,
+            address,
+            bankdetails,
+            terminationdate,
+            basicsalary,
+            appointmenthours,
+            branch,
+            gender,
+            photo_url
+          )
+          VALUES (
+            $1, $2, $3, $4, $5, $6, $7,
+            $8, $9, $10, $11, $12, $13::jsonb,
+            $14, $15, $16, $17, $18, $19
+          )
+          RETURNING *`,
+        [
+          employeeid,
+          firstname,
+          lastname,
+          emailLower,
+          status,
+          position,
+          department,
+          startdate && startdate !== '' ? startdate : null,
+          taxnumber || null,
+          idnumber || null,
+          phonenumber || null,
+          address || null,
+          normalizedBankDetails,
+          normalizedTerminationDate,
+          parsedBasicSalary,
+          parsedAppointmentHours,
+          branch || null,
+          gender || null,
+          photo_url || null,
+        ]
       );
 
-      if (email && password) {
-        const hashedPassword = await bcrypt.hash(password, 10);
+      if (emailLower) {
         await client.query(
           `INSERT INTO users (email, password, role, first_name, last_name, employee_id, department, position, join_date)
-           VALUES ($1, $2, 'employee', $3, $4, $5, $6, $7, CURRENT_DATE)
+           VALUES ($1, $2, 'employee', $3, $4, $5, $6, $7, $8)
            ON CONFLICT (email) DO UPDATE
-             SET password = EXCLUDED.password,
+             SET password = COALESCE(EXCLUDED.password, users.password),
                  first_name = EXCLUDED.first_name,
                  last_name = EXCLUDED.last_name,
                  employee_id = EXCLUDED.employee_id,
                  department = EXCLUDED.department,
-                 position = EXCLUDED.position
+                 position = EXCLUDED.position,
+                 join_date = COALESCE(EXCLUDED.join_date, users.join_date)
           `,
-          [email.toLowerCase(), hashedPassword, firstname, lastname, employeeid, department, position]
+          [
+            emailLower,
+            hashedPassword,
+            firstname,
+            lastname,
+            employeeid,
+            department,
+            position,
+            joinDate,
+          ]
         );
       }
 
@@ -69,48 +164,145 @@ export const getEmployee = async (req: Request, res: Response) => {
 export const updateEmployee = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { employeeid, firstname, lastname, email, status, position, department, password } = req.body;
+    const {
+      employeeid,
+      firstname,
+      lastname,
+      email,
+      status,
+      position,
+      department,
+      password,
+      startdate,
+      taxnumber,
+      idnumber,
+      phonenumber,
+      address,
+      bankdetails,
+      terminationdate,
+      basicsalary,
+      appointmenthours,
+      branch,
+      gender,
+      photo_url,
+    } = req.body;
+
+    const toNumberOrNull = (value: any) => {
+      if (value === undefined || value === null || value === '') {
+        return null;
+      }
+      const parsed = Number(value);
+      return Number.isNaN(parsed) ? null : parsed;
+    };
+
+    const normalizedBankDetails = bankdetails
+      ? (typeof bankdetails === 'string' ? bankdetails : JSON.stringify(bankdetails))
+      : JSON.stringify({ bankName: '', accountNumber: '' });
+    const normalizedTerminationDate = terminationdate && terminationdate !== '' ? terminationdate : null;
+    const parsedBasicSalary = toNumberOrNull(basicsalary);
+    const parsedAppointmentHours = toNumberOrNull(appointmenthours);
+    const emailLower = email ? email.toLowerCase() : null;
+    const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
-      const result = await client.query(
-        'UPDATE employees SET employeeid=$1, firstname=$2, lastname=$3, email=$4, status=$5, position=$6, department=$7 WHERE id=$8 RETURNING *',
-        [employeeid, firstname, lastname, email, status, position, department, id]
-      );
-
-      if (result.rows.length === 0) {
+      const existingResult = await client.query('SELECT * FROM employees WHERE id = $1', [id]);
+      if (existingResult.rows.length === 0) {
         await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Employee not found' });
       }
+      const existingEmployee = existingResult.rows[0];
 
-      if (email) {
-        const updates: string[] = ['email = $1', 'first_name = $2', 'last_name = $3', 'employee_id = $4', 'department = $5', 'position = $6'];
-        const values: any[] = [email.toLowerCase(), firstname, lastname, employeeid, department, position];
+      const updateResult = await client.query(
+        `UPDATE employees
+            SET employeeid=$1,
+                firstname=$2,
+                lastname=$3,
+                email=$4,
+                status=$5,
+                position=$6,
+                department=$7,
+                startdate=$8,
+                taxnumber=$9,
+                idnumber=$10,
+                phonenumber=$11,
+                address=$12,
+                bankdetails=$13::jsonb,
+                terminationdate=$14,
+                basicsalary=$15,
+                appointmenthours=$16,
+                branch=$17,
+                gender=$18,
+                photo_url=$19,
+                updated_at=NOW()
+          WHERE id=$20
+          RETURNING *`,
+        [
+          employeeid,
+          firstname,
+          lastname,
+          emailLower,
+          status,
+          position,
+          department,
+          startdate && startdate !== '' ? startdate : null,
+          taxnumber || null,
+          idnumber || null,
+          phonenumber || null,
+          address || null,
+          normalizedBankDetails,
+          normalizedTerminationDate,
+          parsedBasicSalary,
+          parsedAppointmentHours,
+          branch || null,
+          gender || null,
+          photo_url || null,
+          id,
+        ]
+      );
 
-        if (password) {
-          const hashedPassword = await bcrypt.hash(password, 10);
-          updates.push(`password = $${updates.length + 1}`);
-          values.push(hashedPassword);
-        }
+      const updatedEmployee = updateResult.rows[0];
 
-        const employeeIdentifierIndex = values.length + 1;
-        values.push(result.rows[0].employeeid || employeeid);
-        const emailIdentifierIndex = values.length + 1;
-        values.push(email.toLowerCase());
+      const targetEmail = (emailLower || updatedEmployee.email || existingEmployee.email || '').toLowerCase();
+      if (targetEmail) {
+        const joinDate = startdate && startdate !== ''
+          ? startdate
+          : updatedEmployee.startdate || existingEmployee.startdate || new Date().toISOString().split('T')[0];
 
         await client.query(
-          `UPDATE users
-             SET ${updates.join(', ')}
-           WHERE employee_id = $${employeeIdentifierIndex}
-              OR email = $${emailIdentifierIndex}
+          `INSERT INTO users (email, password, role, first_name, last_name, employee_id, department, position, join_date)
+           VALUES ($1, $2, 'employee', $3, $4, $5, $6, $7, $8)
+           ON CONFLICT (email) DO UPDATE
+             SET password = COALESCE(EXCLUDED.password, users.password),
+                 first_name = EXCLUDED.first_name,
+                 last_name = EXCLUDED.last_name,
+                 employee_id = EXCLUDED.employee_id,
+                 department = EXCLUDED.department,
+                 position = EXCLUDED.position,
+                 join_date = COALESCE(EXCLUDED.join_date, users.join_date)
           `,
-          values
+          [
+            targetEmail,
+            hashedPassword,
+            firstname || updatedEmployee.firstname || existingEmployee.firstname,
+            lastname || updatedEmployee.lastname || existingEmployee.lastname,
+            updatedEmployee.employeeid || existingEmployee.employeeid,
+            department || updatedEmployee.department || existingEmployee.department,
+            position || updatedEmployee.position || existingEmployee.position,
+            joinDate,
+          ]
         );
+
+        const previousEmail = existingEmployee.email ? existingEmployee.email.toLowerCase() : null;
+        if (previousEmail && previousEmail !== targetEmail) {
+          await client.query('DELETE FROM users WHERE email = $1', [previousEmail]);
+        }
       }
 
       await client.query('COMMIT');
-      res.json(result.rows[0]);
+      res.json(updatedEmployee);
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;

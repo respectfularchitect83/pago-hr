@@ -2,8 +2,9 @@ import winston from 'winston';
 import { Logtail } from '@logtail/node';
 import { LogtailTransport } from '@logtail/winston';
 
-// Initialize Better Stack (Logtail) logging
-const logtail = new Logtail(process.env.LOGTAIL_SOURCE_TOKEN || 'default_token');
+// Initialize Better Stack (Logtail) logging only when token is provided
+const logtailToken = process.env.LOGTAIL_SOURCE_TOKEN;
+const logtail = logtailToken ? new Logtail(logtailToken) : null;
 
 // Create Winston logger
 const logger = winston.createLogger({
@@ -20,8 +21,8 @@ const logger = winston.createLogger({
         winston.format.simple()
       )
     }),
-    // Better Stack (Logtail) transport for cloud logging
-    new LogtailTransport(logtail)
+    // Better Stack (Logtail) transport for cloud logging (enabled only if token is set)
+    ...(logtail ? [new LogtailTransport(logtail)] : [])
   ]
 });
 

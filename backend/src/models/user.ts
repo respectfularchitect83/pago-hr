@@ -57,6 +57,15 @@ export async function findUserById(id: number): Promise<User | null> {
   return result.rows[0] || null;
 }
 
+export async function findUserByEmployeeId(employeeId: string): Promise<User | null> {
+  const result = await pool.query(
+    'SELECT * FROM users WHERE employee_id = $1',
+    [employeeId]
+  );
+
+  return result.rows[0] || null;
+}
+
 export async function validatePassword(user: User, password: string): Promise<boolean> {
   return bcrypt.compare(password, user.password);
 }
