@@ -5,8 +5,8 @@ import PlusIcon from '../icons/PlusIcon';
 interface MessagesViewProps {
     employee: Employee;
     messages: Message[];
-    onSendMessage: (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => void;
-    onUpdateMessageStatus: (messageId: string, status: 'read' | 'unread') => void;
+    onSendMessage: (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => Promise<void> | void;
+    onUpdateMessageStatus: (messageId: string, status: 'read' | 'unread') => Promise<void> | void;
 }
 
 type MessageTab = 'inbox' | 'sent';
@@ -16,6 +16,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ employee, messages, onSendM
     const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
     const [isComposing, setIsComposing] = useState(false);
     const [composeContent, setComposeContent] = useState('');
+    const [isSending, setIsSending] = useState(false);
 
     const inboxMessages = useMemo(() => {
         return messages
@@ -32,22 +33,32 @@ const MessagesView: React.FC<MessagesViewProps> = ({ employee, messages, onSendM
     const handleSelectMessage = (message: Message) => {
         setSelectedMessage(message);
         if (message.status === 'unread' && message.recipientId === employee.id) {
-            onUpdateMessageStatus(message.id, 'read');
+            void Promise.resolve(onUpdateMessageStatus(message.id, 'read'));
         }
     };
     
-    const handleSendMessage = () => {
-        if (composeContent.trim()) {
-            onSendMessage({
+    const handleSendMessage = async () => {
+        if (!composeContent.trim() || isSending) {
+            return;
+        }
+
+        setIsSending(true);
+        try {
+            await Promise.resolve(onSendMessage({
                 senderId: employee.id,
                 recipientId: 'hr',
                 senderName: employee.name,
                 senderPhotoUrl: employee.photoUrl,
                 content: composeContent,
-            });
+            }));
             setComposeContent('');
             setIsComposing(false);
             setActiveTab('sent');
+        } catch (error) {
+            console.error('Failed to send message to HR', error);
+            alert('Failed to send message. Please try again.');
+        } finally {
+            setIsSending(false);
         }
     };
 
@@ -103,8 +114,8 @@ const MessagesView: React.FC<MessagesViewProps> = ({ employee, messages, onSendM
                         rows={8}
                         placeholder="Type your message here..."
                     ></textarea>
-                    <button onClick={handleSendMessage} className="w-full py-2 px-4 bg-gray-800 text-white font-semibold rounded-lg hover:bg-gray-900">
-                        Send Message
+                    <button onClick={handleSendMessage} disabled={isSending} className="w-full py-2 px-4 bg-gray-800 text-white font-semibold rounded-lg hover:bg-gray-900 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                        {isSending ? 'Sending...' : 'Send Message'}
                     </button>
                 </div>
             </div>

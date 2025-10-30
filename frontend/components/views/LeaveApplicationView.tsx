@@ -4,7 +4,7 @@ import { calculateWorkingDays } from '../../utils/leaveCalculations';
 
 interface LeaveApplicationViewProps {
     employee: Employee;
-    onSendMessage: (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => void;
+    onSendMessage: (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => Promise<void> | void;
     onApplicationSent: () => void;
 }
 
@@ -44,7 +44,7 @@ const LeaveApplicationView: React.FC<LeaveApplicationViewProps> = ({ employee, o
         setLeaveDetails({ ...leaveDetails, [e.target.name]: e.target.value });
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (workingDays <= 0) {
             alert('Please select a valid date range.');
@@ -64,16 +64,21 @@ Reason/Notes:
 ${leaveDetails.notes || 'No reason provided.'}
         `.trim();
         
-        onSendMessage({
-            senderId: employee.id,
-            recipientId: 'hr',
-            senderName: employee.name,
-            senderPhotoUrl: employee.photoUrl,
-            content: messageContent,
-        });
+        try {
+            await Promise.resolve(onSendMessage({
+                senderId: employee.id,
+                recipientId: 'hr',
+                senderName: employee.name,
+                senderPhotoUrl: employee.photoUrl,
+                content: messageContent,
+            }));
 
-        setIsSubmitted(true);
-        setTimeout(onApplicationSent, 2000); // Navigate back after 2 seconds
+            setIsSubmitted(true);
+            setTimeout(onApplicationSent, 2000); // Navigate back after 2 seconds
+        } catch (error) {
+            console.error('Failed to submit leave application message', error);
+            alert('Failed to submit your leave request. Please try again.');
+        }
     };
 
     if (isSubmitted) {

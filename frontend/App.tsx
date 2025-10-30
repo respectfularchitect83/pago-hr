@@ -224,6 +224,45 @@ const mapHrUserFromApi = (user: any): HRUser => ({
   role: user?.role,
 });
 
+const mapMessageFromApi = (raw: any): Message => {
+  const resolvedId = raw?.id ? String(raw.id) : `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const resolvedSenderId = typeof raw?.senderId === 'string'
+    ? raw.senderId
+    : raw?.sender_id !== undefined
+      ? String(raw.sender_id)
+      : 'hr';
+  const resolvedRecipientId = typeof raw?.recipientId === 'string'
+    ? raw.recipientId
+    : raw?.recipient_id !== undefined
+      ? String(raw.recipient_id)
+      : 'hr';
+
+  const timestamp = typeof raw?.timestamp === 'string'
+    ? raw.timestamp
+    : raw?.createdAt
+      ? new Date(raw.createdAt).toISOString()
+      : raw?.created_at
+        ? new Date(raw.created_at).toISOString()
+        : new Date().toISOString();
+
+  const mapped: Message = {
+    id: resolvedId,
+    senderId: resolvedSenderId,
+    recipientId: resolvedRecipientId,
+    senderName: raw?.senderName ?? raw?.sender_name ?? 'HR Admin',
+    content: raw?.content ?? '',
+    timestamp,
+    status: raw?.status === 'read' || raw?.is_read === true ? 'read' : 'unread',
+  };
+
+  const photoUrl = raw?.senderPhotoUrl ?? raw?.sender_photo_url ?? raw?.senderPhotoURL;
+  if (photoUrl) {
+    mapped.senderPhotoUrl = photoUrl;
+  }
+
+  return mapped;
+};
+
 const App: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [companyInfo, setCompanyInfo] = useState<Company>(defaultCompanyInfo);
@@ -241,6 +280,29 @@ const App: React.FC = () => {
     const authHeaders = { Authorization: `Bearer ${authToken}` };
     let cancelled = false;
 
+    const fetchMessages = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/messages`, { headers: authHeaders });
+        if (!response.ok) {
+          const message = await extractErrorMessage(response);
+          throw new Error(message || 'Failed to load messages');
+        }
+        const data = await response.json();
+        if (!cancelled) {
+          if (Array.isArray(data)) {
+            setMessages(data.map(mapMessageFromApi));
+          } else {
+            setMessages([]);
+          }
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to load messages', error);
+          setMessages([]);
+        }
+      }
+    };
+
     const loadEmployeeProfile = async () => {
       try {
         const res = await fetch(`${API_URL}/api/employees/self`, { headers: authHeaders });
@@ -257,9 +319,11 @@ const App: React.FC = () => {
         setCurrentUser(mapped);
         setPendingEmployeeId(null);
         setPendingEmployeeEmail(null);
+        await fetchMessages();
       } catch (error) {
         if (!cancelled) {
           console.error(error);
+          setMessages([]);
         }
       }
     };
@@ -354,15 +418,19 @@ const App: React.FC = () => {
           setHrUsers([]);
         }
       }
+
+      if (!cancelled) {
+        await fetchMessages();
+      }
     };
 
     if ('username' in currentUser) {
-      loadAdminData();
+      void loadAdminData();
     } else if ('employeeId' in currentUser) {
       if ('payslips' in currentUser) {
         return;
       }
-      loadEmployeeProfile();
+      void loadEmployeeProfile();
     }
 
     return () => {
@@ -470,6 +538,7 @@ const App: React.FC = () => {
     setHrUsers([]);
     setPendingEmployeeId(null);
     setPendingEmployeeEmail(null);
+    setMessages([]);
   }, []);
   
   const handleUpdateEmployee = async (updatedEmployee: Employee): Promise<Employee> => {
@@ -795,23 +864,95 @@ const App: React.FC = () => {
     alert('HR user deleted successfully!');
   };
 
-  const handleSendMessage = (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => {
-    const newMessage: Message = {
-        ...message,
-        id: `msg-${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        status: 'unread',
-    };
-    setMessages(prev => [newMessage, ...prev]);
-  };
+  const handleSendMessage = useCallback(async (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => {
+    if (!authToken) {
+      throw new Error('Not authenticated');
+    }
 
-  const handleUpdateMessageStatus = (messageId: string, status: 'read' | 'unread') => {
-    setMessages(prev => prev.map(msg => msg.id === messageId ? {...msg, status} : msg));
-  };
+    const trimmedContent = message.content.trim();
+    if (!trimmedContent) {
+      throw new Error('Message content cannot be empty');
+    }
 
-  const handleDeleteMessage = (messageId: string) => {
-    setMessages(prev => prev.filter(msg => msg.id !== messageId));
-  };
+    const payload: Record<string, any> = { content: trimmedContent };
+    if (message.recipientId && message.recipientId !== 'hr') {
+      payload.recipientId = message.recipientId;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorMessage = await extractErrorMessage(response);
+        throw new Error(errorMessage || 'Failed to send message');
+      }
+
+      const created = await response.json();
+      const mapped = mapMessageFromApi(created);
+      setMessages(prev => [mapped, ...prev]);
+    } catch (error) {
+      console.error('Failed to send message', error);
+      throw error instanceof Error ? error : new Error('Failed to send message');
+    }
+  }, [authToken]);
+
+  const handleUpdateMessageStatus = useCallback(async (messageId: string, status: 'read' | 'unread') => {
+    if (!authToken) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/messages/${messageId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ status }),
+      });
+
+      if (!response.ok) {
+        const errorMessage = await extractErrorMessage(response);
+        throw new Error(errorMessage || 'Failed to update message status');
+      }
+
+      const updated = await response.json();
+      const mapped = mapMessageFromApi(updated);
+      setMessages(prev => prev.map(msg => (msg.id === mapped.id ? mapped : msg)));
+    } catch (error) {
+      console.error('Failed to update message status', error);
+    }
+  }, [authToken]);
+
+  const handleDeleteMessage = useCallback(async (messageId: string) => {
+    if (!authToken) {
+      throw new Error('Not authenticated');
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/messages/${messageId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+
+      if (!response.ok) {
+        const errorMessage = await extractErrorMessage(response);
+        throw new Error(errorMessage || 'Failed to delete message');
+      }
+
+      setMessages(prev => prev.filter(msg => msg.id !== messageId));
+    } catch (error) {
+      console.error('Failed to delete message', error);
+      throw error instanceof Error ? error : new Error('Failed to delete message');
+    }
+  }, [authToken]);
   
   // A bit of a hack to switch between login screens without a router
   const [loginView, setLoginView] = useState<'employee' | 'admin'>('employee');

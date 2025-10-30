@@ -6,9 +6,9 @@ interface HRMessagesTabProps {
     messages: Message[];
     employees: Employee[];
     currentUser: HRUser;
-    onUpdateMessageStatus: (messageId: string, status: 'read' | 'unread') => void;
-    onSendMessage: (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => void;
-    onDeleteMessage: (messageId: string) => void;
+    onUpdateMessageStatus: (messageId: string, status: 'read' | 'unread') => Promise<void> | void;
+    onSendMessage: (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => Promise<void> | void;
+    onDeleteMessage: (messageId: string) => Promise<void> | void;
 }
 
 interface Conversation {
@@ -59,27 +59,36 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({ messages, employees, curr
         return employees.find(e => e.id === selectedEmployeeId);
     }, [selectedEmployeeId, employees]);
 
-    const handleSelectConversation = (employeeId: string) => {
+    const handleSelectConversation = async (employeeId: string) => {
         setSelectedEmployeeId(employeeId);
-        messages.forEach(msg => {
-            if (msg.senderId === employeeId && msg.status === 'unread') {
-                onUpdateMessageStatus(msg.id, 'read');
-            }
-        });
+        const unreadFromEmployee = messages.filter(msg => msg.senderId === employeeId && msg.status === 'unread');
+        if (unreadFromEmployee.length === 0) {
+            return;
+        }
+        try {
+            await Promise.all(unreadFromEmployee.map(msg => Promise.resolve(onUpdateMessageStatus(msg.id, 'read'))));
+        } catch (error) {
+            console.error('Failed to mark conversation messages as read', error);
+        }
     };
 
-    const handleSendReply = (e: React.FormEvent) => {
+    const handleSendReply = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!replyContent.trim() || !selectedEmployeeId) return;
 
-        onSendMessage({
-            senderId: 'hr',
-            recipientId: selectedEmployeeId,
-            senderName: 'HR Admin',
-            senderPhotoUrl: currentUser.photoUrl || undefined,
-            content: replyContent,
-        });
-        setReplyContent('');
+        try {
+            await Promise.resolve(onSendMessage({
+                senderId: 'hr',
+                recipientId: selectedEmployeeId,
+                senderName: 'HR Admin',
+                senderPhotoUrl: currentUser.photoUrl || undefined,
+                content: replyContent,
+            }));
+            setReplyContent('');
+        } catch (error) {
+            console.error('Failed to send HR reply', error);
+            alert('Failed to send reply. Please try again.');
+        }
     };
 
     useEffect(() => {
@@ -107,7 +116,7 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({ messages, employees, curr
         return "Just now";
     }
 
-    const handleDeleteMessage = (messageId: string) => {
+    const handleDeleteMessage = async (messageId: string) => {
         const message = messages.find(m => m.id === messageId);
         if (!message) {
             return;
@@ -116,7 +125,12 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({ messages, employees, curr
         if (!confirmation) {
             return;
         }
-        onDeleteMessage(messageId);
+        try {
+            await Promise.resolve(onDeleteMessage(messageId));
+        } catch (error) {
+            console.error('Failed to delete message', error);
+            alert('Failed to delete message. Please try again.');
+        }
     };
 
     return (
@@ -127,7 +141,7 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({ messages, employees, curr
                     {conversations.length > 0 ? conversations.map(convo => (
                         <button
                             key={convo.employeeId}
-                            onClick={() => handleSelectConversation(convo.employeeId)}
+                            onClick={() => { void handleSelectConversation(convo.employeeId); }}
                             className={`w-full flex items-start p-3 rounded-lg text-left transition-colors relative ${
                                 selectedEmployeeId === convo.employeeId ? 'bg-gray-800 text-white' : 'bg-white hover:bg-gray-100 border'
                             }`}

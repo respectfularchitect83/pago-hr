@@ -11,6 +11,7 @@ import employeeRoutes from './routes/employees';
 import payslipRoutes from './routes/payslips';
 import leaveRoutes from './routes/leave';
 import companyRoutes from './routes/company';
+import messageRoutes from './routes/messages';
 import ensureLatestSchema from './db/ensureLatestSchema';
 
 // Load environment variables
@@ -73,6 +74,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/payslips', payslipRoutes);
 app.use('/api/leave', leaveRoutes);
 app.use('/api/company', companyRoutes);
+app.use('/api/messages', messageRoutes);
 // Add Sentry error handler if needed, or use expressErrorHandler/setupExpressErrorHandler if available
 // If you want to capture errors, use:
 // import { expressErrorHandler } from '@sentry/node';

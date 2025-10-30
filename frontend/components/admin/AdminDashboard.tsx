@@ -28,9 +28,9 @@ interface AdminDashboardProps {
   onCreatePayslip: (employeeId: string, payslip: Payslip) => Promise<Payslip>;
   onUpdatePayslip: (employeeId: string, payslip: Payslip) => Promise<Payslip>;
   onDeletePayslip: (employeeId: string, payslipId: string) => Promise<void>;
-  onUpdateMessageStatus: (messageId: string, status: 'read' | 'unread') => void;
-  onSendMessage: (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => void;
-  onDeleteMessage: (messageId: string) => void;
+  onUpdateMessageStatus: (messageId: string, status: 'read' | 'unread') => Promise<void> | void;
+  onSendMessage: (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => Promise<void> | void;
+  onDeleteMessage: (messageId: string) => Promise<void> | void;
 }
 
 type AdminView = 'employees' | 'leave' | 'messages' | 'reports' | 'hrUsers' | 'settings';

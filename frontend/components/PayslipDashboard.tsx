@@ -12,8 +12,8 @@ interface PayslipDashboardProps {
   companyInfo: Company;
   messages: Message[];
   onLogout: () => void;
-  onSendMessage: (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => void;
-  onUpdateMessageStatus: (messageId: string, status: 'read' | 'unread') => void;
+  onSendMessage: (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => Promise<void> | void;
+  onUpdateMessageStatus: (messageId: string, status: 'read' | 'unread') => Promise<void> | void;
 }
 
 export type View = 'list' | 'detail' | 'profile' | 'messages' | 'leave';
