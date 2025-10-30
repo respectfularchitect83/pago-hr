@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import pool from '../config/db';
 import bcrypt from 'bcrypt';
+import logger from '../utils/logger';
 
 export const listEmployees = async (req: Request, res: Response) => {
   try {
@@ -58,6 +59,7 @@ export const createEmployee = async (req: Request, res: Response) => {
     try {
       await client.query('BEGIN');
 
+      const emailToPersist = emailLower || null;
       const result = await client.query(
         `INSERT INTO employees (
             employeeid,
@@ -90,7 +92,7 @@ export const createEmployee = async (req: Request, res: Response) => {
           employeeid,
           firstname,
           lastname,
-          emailLower,
+          emailToPersist,
           status,
           position,
           department,
@@ -109,7 +111,18 @@ export const createEmployee = async (req: Request, res: Response) => {
         ]
       );
 
-      if (emailLower) {
+      if (emailToPersist) {
+        let passwordForUpsert = hashedPassword;
+        if (!passwordForUpsert) {
+          const existingUser = await client.query('SELECT password FROM users WHERE email = $1', [emailToPersist]);
+          passwordForUpsert = existingUser.rows[0]?.password || null;
+        }
+
+        if (!passwordForUpsert) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: 'Password is required to create or update user account' });
+        }
+
         await client.query(
           `INSERT INTO users (email, password, role, first_name, last_name, employee_id, department, position, join_date)
            VALUES ($1, $2, 'employee', $3, $4, $5, $6, $7, $8)
@@ -123,8 +136,8 @@ export const createEmployee = async (req: Request, res: Response) => {
                  join_date = COALESCE(EXCLUDED.join_date, users.join_date)
           `,
           [
-            emailLower,
-            hashedPassword,
+            emailToPersist,
+            passwordForUpsert,
             firstname,
             lastname,
             employeeid,
@@ -144,6 +157,7 @@ export const createEmployee = async (req: Request, res: Response) => {
       client.release();
     }
   } catch (err) {
+    logger.error('Failed to create employee', { error: err instanceof Error ? err.message : err });
     res.status(500).json({ error: 'Failed to create employee' });
   }
 };
@@ -215,6 +229,8 @@ export const updateEmployee = async (req: Request, res: Response) => {
       }
       const existingEmployee = existingResult.rows[0];
 
+      const emailToPersist = emailLower ?? (existingEmployee.email ? existingEmployee.email.toLowerCase() : null);
+
       const updateResult = await client.query(
         `UPDATE employees
             SET employeeid=$1,
@@ -243,7 +259,7 @@ export const updateEmployee = async (req: Request, res: Response) => {
           employeeid,
           firstname,
           lastname,
-          emailLower,
+          emailToPersist,
           status,
           position,
           department,
@@ -265,12 +281,21 @@ export const updateEmployee = async (req: Request, res: Response) => {
 
       const updatedEmployee = updateResult.rows[0];
 
-      const targetEmail = (emailLower || updatedEmployee.email || existingEmployee.email || '').toLowerCase();
+      const targetEmail = (emailToPersist || existingEmployee.email || '').toLowerCase();
       if (targetEmail) {
         const joinDate = startdate && startdate !== ''
           ? startdate
           : updatedEmployee.startdate || existingEmployee.startdate || new Date().toISOString().split('T')[0];
 
+        let passwordForUpsert = hashedPassword;
+        if (!passwordForUpsert) {
+          const existingUser = await client.query('SELECT password FROM users WHERE email = $1', [targetEmail]);
+          passwordForUpsert = existingUser.rows[0]?.password || null;
+        }
+
+        if (!passwordForUpsert) {
+          logger.warn('Skipping user upsert due to missing password', { employeeId: employeeid, email: targetEmail });
+        } else {
         await client.query(
           `INSERT INTO users (email, password, role, first_name, last_name, employee_id, department, position, join_date)
            VALUES ($1, $2, 'employee', $3, $4, $5, $6, $7, $8)
@@ -285,7 +310,7 @@ export const updateEmployee = async (req: Request, res: Response) => {
           `,
           [
             targetEmail,
-            hashedPassword,
+            passwordForUpsert,
             firstname || updatedEmployee.firstname || existingEmployee.firstname,
             lastname || updatedEmployee.lastname || existingEmployee.lastname,
             updatedEmployee.employeeid || existingEmployee.employeeid,
@@ -299,6 +324,7 @@ export const updateEmployee = async (req: Request, res: Response) => {
         if (previousEmail && previousEmail !== targetEmail) {
           await client.query('DELETE FROM users WHERE email = $1', [previousEmail]);
         }
+        }
       }
 
       await client.query('COMMIT');
@@ -310,6 +336,7 @@ export const updateEmployee = async (req: Request, res: Response) => {
       client.release();
     }
   } catch (err) {
+    logger.error('Failed to update employee', { error: err instanceof Error ? err.message : err });
     res.status(500).json({ error: 'Failed to update employee' });
   }
 };
@@ -323,6 +350,7 @@ export const deleteEmployee = async (req: Request, res: Response) => {
     }
     res.json({ message: 'Employee deleted' });
   } catch (err) {
+    logger.error('Failed to delete employee', { error: err instanceof Error ? err.message : err });
     res.status(500).json({ error: 'Failed to delete employee' });
   }
 };
