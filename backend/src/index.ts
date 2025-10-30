@@ -17,13 +17,22 @@ config();
 
 const app = express();
 
-// CORS setup for deployed frontend
-const allowedOrigins = [
-  'https://pago-hr.vercel.app',
-];
+
+// CORS setup for deployed frontend (fixes preflight and uses env var)
+const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
 app.use(cors({
-  origin: allowedOrigins,
+  origin: allowedOrigin,
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
+// Explicitly handle preflight OPTIONS requests for all routes
+app.options('*', cors({
+  origin: allowedOrigin,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
