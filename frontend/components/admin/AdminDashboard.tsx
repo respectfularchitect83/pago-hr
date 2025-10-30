@@ -30,6 +30,7 @@ interface AdminDashboardProps {
   onDeletePayslip: (employeeId: string, payslipId: string) => Promise<void>;
   onUpdateMessageStatus: (messageId: string, status: 'read' | 'unread') => void;
   onSendMessage: (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => void;
+  onDeleteMessage: (messageId: string) => void;
 }
 
 type AdminView = 'employees' | 'leave' | 'messages' | 'reports' | 'hrUsers' | 'settings';
@@ -77,6 +78,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onDeleteHRUser,
     onUpdateMessageStatus,
     onSendMessage,
+    onDeleteMessage,
 }) => {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [adminView, setAdminView] = useState<AdminView>('employees');
@@ -133,6 +135,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   messages={messages} 
                   onUpdateMessageStatus={onUpdateMessageStatus} 
                   onSendMessage={onSendMessage}
+                  onDeleteMessage={onDeleteMessage}
                   currentUser={currentUser}
                   employees={employees}
                 />;

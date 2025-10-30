@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Message, HRUser, Employee } from '../../types';
+import TrashIcon from '../icons/TrashIcon';
 
 interface HRMessagesTabProps {
     messages: Message[];
@@ -7,6 +8,7 @@ interface HRMessagesTabProps {
     currentUser: HRUser;
     onUpdateMessageStatus: (messageId: string, status: 'read' | 'unread') => void;
     onSendMessage: (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => void;
+    onDeleteMessage: (messageId: string) => void;
 }
 
 interface Conversation {
@@ -17,7 +19,7 @@ interface Conversation {
     unreadCount: number;
 }
 
-const HRMessagesTab: React.FC<HRMessagesTabProps> = ({ messages, employees, currentUser, onUpdateMessageStatus, onSendMessage }) => {
+const HRMessagesTab: React.FC<HRMessagesTabProps> = ({ messages, employees, currentUser, onUpdateMessageStatus, onSendMessage, onDeleteMessage }) => {
     const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
     const [replyContent, setReplyContent] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -83,6 +85,16 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({ messages, employees, curr
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [selectedConversationMessages]);
+
+    useEffect(() => {
+        if (!selectedEmployeeId) {
+            return;
+        }
+        const stillHasMessages = messages.some(msg => msg.senderId === selectedEmployeeId || msg.recipientId === selectedEmployeeId);
+        if (!stillHasMessages) {
+            setSelectedEmployeeId(null);
+        }
+    }, [messages, selectedEmployeeId]);
     
     const timeSince = (date: string): string => {
         const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
@@ -94,6 +106,18 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({ messages, employees, curr
         if (interval > 1) return Math.floor(interval) + "m ago";
         return "Just now";
     }
+
+    const handleDeleteMessage = (messageId: string) => {
+        const message = messages.find(m => m.id === messageId);
+        if (!message) {
+            return;
+        }
+        const confirmation = window.confirm('Delete this message? This cannot be undone.');
+        if (!confirmation) {
+            return;
+        }
+        onDeleteMessage(messageId);
+    };
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[70vh]">
@@ -134,13 +158,23 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({ messages, employees, curr
                         </div>
                         <div className="flex-grow overflow-y-auto space-y-4 pr-2">
                             {selectedConversationMessages.map(msg => (
-                                <div key={msg.id} className={`flex items-end gap-2 ${msg.senderId === 'hr' ? 'justify-end' : 'justify-start'}`}>
+                                <div key={msg.id} className={`group flex items-end gap-2 ${msg.senderId === 'hr' ? 'justify-end' : 'justify-start'}`}>
                                     {msg.senderId !== 'hr' && (
                                         <img src={msg.senderPhotoUrl} alt={msg.senderName} className="h-8 w-8 rounded-full" />
                                     )}
-                                    <div className={`max-w-md p-3 rounded-lg ${msg.senderId === 'hr' ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-800'}`}>
-                                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                                        <p className={`text-xs mt-1 opacity-70 ${msg.senderId === 'hr' ? 'text-right' : 'text-left'}`}>{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                                    <div className="relative flex items-end gap-2">
+                                        <div className={`max-w-md p-3 rounded-lg ${msg.senderId === 'hr' ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-800'}`}>
+                                            <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                                            <p className={`text-xs mt-1 opacity-70 ${msg.senderId === 'hr' ? 'text-right' : 'text-left'}`}>{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeleteMessage(msg.id)}
+                                            className={`opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-600 focus-visible:opacity-100 p-1`}
+                                            aria-label="Delete message"
+                                        >
+                                            <TrashIcon className="h-4 w-4" />
+                                        </button>
                                     </div>
                                     {msg.senderId === 'hr' && (
                                         <img src={currentUser.photoUrl || 'https://i.pravatar.cc/150?u=hr1'} alt={currentUser.username} className="h-8 w-8 rounded-full" />

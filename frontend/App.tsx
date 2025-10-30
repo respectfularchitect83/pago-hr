@@ -808,6 +808,10 @@ const App: React.FC = () => {
   const handleUpdateMessageStatus = (messageId: string, status: 'read' | 'unread') => {
     setMessages(prev => prev.map(msg => msg.id === messageId ? {...msg, status} : msg));
   };
+
+  const handleDeleteMessage = (messageId: string) => {
+    setMessages(prev => prev.filter(msg => msg.id !== messageId));
+  };
   
   // A bit of a hack to switch between login screens without a router
   const [loginView, setLoginView] = useState<'employee' | 'admin'>('employee');
@@ -841,6 +845,7 @@ const App: React.FC = () => {
         onDeletePayslip={handleDeletePayslip}
                 onUpdateMessageStatus={handleUpdateMessageStatus}
                 onSendMessage={handleSendMessage}
+        onDeleteMessage={handleDeleteMessage}
                 currentUser={currentUser}
             />
         );
