@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import pool from '../config/db';
 import bcrypt from 'bcrypt';
 import logger from '../utils/logger';
+import { AuthRequest } from '../middleware/auth';
+import { mapPayslipRow } from './payslip';
 
 export const listEmployees = async (req: Request, res: Response) => {
   try {
@@ -178,6 +180,57 @@ export const getEmployee = async (req: Request, res: Response) => {
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch employee' });
+  }
+};
+
+export const getSelfProfile = async (req: AuthRequest, res: Response) => {
+  try {
+    const authUser = req.user;
+    if (!authUser) {
+      return res.status(401).json({ error: 'Please authenticate' });
+    }
+
+    if (authUser.role !== 'employee') {
+      return res.status(403).json({ error: 'Only employees can access this profile' });
+    }
+
+    let employeeRow: any | null = null;
+
+    if (authUser.employee_id) {
+      const byEmployeeId = await pool.query('SELECT * FROM employees WHERE employeeid = $1 LIMIT 1', [authUser.employee_id]);
+      employeeRow = byEmployeeId.rows[0] ?? null;
+    }
+
+    if (!employeeRow && authUser.email) {
+      const byEmail = await pool.query('SELECT * FROM employees WHERE LOWER(email) = LOWER($1) LIMIT 1', [authUser.email]);
+      employeeRow = byEmail.rows[0] ?? null;
+    }
+
+    if (!employeeRow) {
+      return res.status(404).json({ error: 'Employee profile not found' });
+    }
+
+    const payslipsResult = await pool.query(
+      `SELECT *
+         FROM payslips
+        WHERE employee_id = $1
+           OR user_id = $2
+        ORDER BY payment_date DESC NULLS LAST, created_at DESC`,
+      [employeeRow.id, authUser.id]
+    );
+
+    const payslips = payslipsResult.rows.map(mapPayslipRow);
+
+    res.json({
+      ...employeeRow,
+      leave_records: employeeRow.leave_records ?? [],
+      payslips,
+    });
+  } catch (error) {
+    logger.error('Failed to load self employee profile', {
+      error: error instanceof Error ? error.message : error,
+    });
+    res.status(500).json({ error: 'Failed to load employee profile' });
   }
 };
 

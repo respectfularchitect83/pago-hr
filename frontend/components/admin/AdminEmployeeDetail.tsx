@@ -12,14 +12,15 @@ interface AdminEmployeeDetailProps {
   employee: Employee;
   companyInfo: Company;
   onBack: () => void;
-  onSave: (employee: Employee) => void;
+    onSave: (employee: Employee) => Promise<Employee>;
     onCreatePayslip: (employeeId: string, payslip: Payslip) => Promise<Payslip>;
     onUpdatePayslip: (employeeId: string, payslip: Payslip) => Promise<Payslip>;
     onDeletePayslip: (employeeId: string, payslipId: string) => Promise<void>;
+    onDeleteEmployee?: (employeeId: string) => Promise<void>;
   isNew?: boolean;
 }
 
-const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, companyInfo, onBack, onSave, onCreatePayslip, onUpdatePayslip, onDeletePayslip, isNew = false }) => {
+const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, companyInfo, onBack, onSave, onCreatePayslip, onUpdatePayslip, onDeletePayslip, onDeleteEmployee, isNew = false }) => {
     const [localEmployee, setLocalEmployee] = useState<Employee>({
         ...employee,
         payslips: [...(employee.payslips || [])],
@@ -73,7 +74,7 @@ const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, com
     }
   };
   
-    const handleSaveClick = () => {
+    const handleSaveClick = async () => {
         setFormError(null);
 
         if (isNew && !password) {
@@ -92,12 +93,24 @@ const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, com
                 ? { ...localEmployee, password }
                 : { ...localEmployee };
 
-        onSave(employeeToSave);
-    if (!isNew) {
-        setIsEditing(false);
-    }
-        setPassword('');
-        setConfirmPassword('');
+        try {
+            const persisted = await onSave(employeeToSave);
+            const mergedEmployee: Employee = {
+                ...localEmployee,
+                ...persisted,
+                payslips: Array.isArray(persisted.payslips) ? persisted.payslips : localEmployee.payslips,
+                leaveRecords: Array.isArray(persisted.leaveRecords) ? persisted.leaveRecords : localEmployee.leaveRecords,
+            };
+            if (!isNew) {
+                setLocalEmployee(mergedEmployee);
+                setIsEditing(false);
+            }
+            setPassword('');
+            setConfirmPassword('');
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to save employee.';
+            setFormError(message);
+        }
   };
   
   const handleCancelClick = () => {
@@ -182,6 +195,26 @@ const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, com
     }
   };
 
+    const handleDeleteEmployeeRecord = async () => {
+        if (!onDeleteEmployee || !localEmployee.id || localEmployee.id === 'new') {
+            return;
+        }
+
+        if (!window.confirm(`Delete ${localEmployee.name}? This action cannot be undone.`)) {
+            return;
+        }
+
+        setFormError(null);
+        try {
+            await onDeleteEmployee(localEmployee.id);
+            alert('Employee deleted successfully!');
+            onBack();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to delete employee.';
+            setFormError(message);
+        }
+    };
+
   const ReadOnlyDisplay: React.FC<{ label: string; value: string | number | undefined | null }> = ({ label, value }) => (
     <div>
         <label className="block text-sm font-medium text-gray-500">{label}</label>
@@ -198,6 +231,14 @@ const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, com
          </button>
          <h2 className="text-xl font-bold text-gray-800">{isNew ? 'Add New Employee' : localEmployee.name}</h2>
          <div className="flex items-center space-x-2">
+            {!isNew && onDeleteEmployee && (
+                <button
+                    onClick={handleDeleteEmployeeRecord}
+                    className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700"
+                >
+                    Delete
+                </button>
+            )}
             {!isNew && !isEditing && (
                 <button onClick={() => setIsEditing(true)} className="px-4 py-2 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700">
                     Edit

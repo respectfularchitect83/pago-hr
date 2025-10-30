@@ -18,9 +18,9 @@ interface AdminDashboardProps {
   messages: Message[];
   currentUser: HRUser;
   onLogout: () => void;
-  onUpdateEmployee: (employee: Employee) => void;
-  onAddNewEmployee: (employee: Omit<Employee, 'id'>) => void;
-  onDeleteEmployee: (employeeId: string) => void;
+  onUpdateEmployee: (employee: Employee) => Promise<Employee>;
+  onAddNewEmployee: (employee: Omit<Employee, 'id'>) => Promise<Employee>;
+  onDeleteEmployee: (employeeId: string) => Promise<void>;
   onUpdateCompanyInfo: (company: Company) => void;
   onAddNewHRUser: (newUser: Omit<HRUser, 'id'>) => void;
   onUpdateHRUser: (user: HRUser) => void;
@@ -97,16 +97,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setEmployeeMode('add');
   };
   
-  const handleSaveEmployee = (updatedEmployee: Employee) => {
-    onUpdateEmployee(updatedEmployee);
-    setSelectedEmployee(updatedEmployee); // Keep detail view open with updated data
+  const handleSaveEmployee = async (updatedEmployee: Employee) => {
+    const persisted = await onUpdateEmployee(updatedEmployee);
+    setSelectedEmployee(persisted); // Keep detail view open with updated data
     alert('Employee details saved!');
+    return persisted;
   };
 
-  const handleCreateEmployee = (newEmployeeData: Employee) => {
-    onAddNewEmployee(newEmployeeData);
+  const handleCreateEmployee = async (newEmployeeData: Employee) => {
+    const created = await onAddNewEmployee(newEmployeeData);
     handleBackToList();
     alert('New employee added successfully!');
+    return created;
   };
 
   const renderContent = () => {
@@ -161,7 +163,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     onSave={handleSaveEmployee}
           onCreatePayslip={onCreatePayslip}
           onUpdatePayslip={onUpdatePayslip}
-          onDeletePayslip={onDeletePayslip}
+      onDeletePayslip={onDeletePayslip}
+      onDeleteEmployee={onDeleteEmployee}
                     />
                 );
             }
@@ -174,8 +177,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <AdminEmployeeList 
                     employees={employees} 
                     onSelectEmployee={handleSelectEmployee} 
-                    onAddNew={handleStartAddNew}
-                    onDeleteEmployee={onDeleteEmployee}
+          onAddNew={handleStartAddNew}
                 />
             );
     }

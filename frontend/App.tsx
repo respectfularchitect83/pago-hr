@@ -17,6 +17,28 @@ import AdminDashboard from './components/admin/AdminDashboard';
 
 const DEFAULT_PHOTO_URL = 'https://i.pravatar.cc/150';
 
+const extractErrorMessage = async (response: Response): Promise<string> => {
+  try {
+    const data = await response.clone().json();
+    if (typeof data === 'string') {
+      return data;
+    }
+    if (data && typeof data.error === 'string') {
+      return data.error;
+    }
+    if (data && typeof data.message === 'string') {
+      return data.message;
+    }
+  } catch {
+    // Ignore JSON parsing errors and try text fallback
+  }
+  try {
+    return await response.text();
+  } catch {
+    return '';
+  }
+};
+
 const defaultCompanyInfo: Company = {
   name: 'PAGO Payroll Solutions',
   address: '',
@@ -209,16 +231,40 @@ const App: React.FC = () => {
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [pendingEmployeeId, setPendingEmployeeId] = useState<string | null>(null);
   const [pendingEmployeeEmail, setPendingEmployeeEmail] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<Employee | HRUser | null>(null);
   // Fetch data from backend API on mount
   React.useEffect(() => {
-    if (!authToken) {
+    if (!authToken || !currentUser) {
       return;
     }
 
     const authHeaders = { Authorization: `Bearer ${authToken}` };
     let cancelled = false;
 
-    const loadData = async () => {
+    const loadEmployeeProfile = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/employees/self`, { headers: authHeaders });
+        if (!res.ok) {
+          const message = await extractErrorMessage(res);
+          throw new Error(message || 'Failed to load profile');
+        }
+        const data = await res.json();
+        if (cancelled) {
+          return;
+        }
+        const mapped = mapEmployeeFromApi({ ...data, payslips: data.payslips });
+        setEmployees([mapped]);
+        setCurrentUser(mapped);
+        setPendingEmployeeId(null);
+        setPendingEmployeeEmail(null);
+      } catch (error) {
+        if (!cancelled) {
+          console.error(error);
+        }
+      }
+    };
+
+    const loadAdminData = async () => {
       try {
         const employeesRes = await fetch(`${API_URL}/api/employees`, { headers: authHeaders });
         if (!employeesRes.ok) {
@@ -310,14 +356,20 @@ const App: React.FC = () => {
       }
     };
 
-    loadData();
+    if ('username' in currentUser) {
+      loadAdminData();
+    } else if ('employeeId' in currentUser) {
+      if ('payslips' in currentUser) {
+        return;
+      }
+      loadEmployeeProfile();
+    }
 
     return () => {
       cancelled = true;
     };
-  }, [authToken]);
+  }, [authToken, currentUser]);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [currentUser, setCurrentUser] = useState<Employee | HRUser | null>(null);
 
   React.useEffect(() => {
     if ((!pendingEmployeeId && !pendingEmployeeEmail) || employees.length === 0) {
@@ -420,43 +472,101 @@ const App: React.FC = () => {
     setPendingEmployeeEmail(null);
   }, []);
   
-  const handleUpdateEmployee = async (updatedEmployee: Employee) => {
-  if (!authToken) return;
-  const payload = mapEmployeeToApiPayload(updatedEmployee);
-  await fetch(`${API_URL}/api/employees/${updatedEmployee.id}`, {
+  const handleUpdateEmployee = async (updatedEmployee: Employee): Promise<Employee> => {
+    if (!authToken) {
+      throw new Error('Not authenticated');
+    }
+
+    const payload = mapEmployeeToApiPayload(updatedEmployee);
+    const response = await fetch(`${API_URL}/api/employees/${updatedEmployee.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
       body: JSON.stringify(payload),
     });
-    const { password, ...rest } = updatedEmployee;
-    const sanitizedEmployee = rest as Employee;
-    setEmployees(prevEmployees => prevEmployees.map(emp => emp.id === updatedEmployee.id ? sanitizedEmployee : emp));
+
+    if (!response.ok) {
+      const message = await extractErrorMessage(response);
+      throw new Error(message || 'Failed to update employee');
+    }
+
+    const updatedRaw = await response.json();
+    const mappedFromApi = mapEmployeeFromApi(updatedRaw);
+    let merged: Employee | null = null;
+
+    setEmployees(prevEmployees => {
+      const current = prevEmployees.find(emp => emp.id === mappedFromApi.id || emp.id === updatedEmployee.id);
+      merged = {
+        ...(current ?? updatedEmployee),
+        ...mappedFromApi,
+        payslips: current?.payslips ?? updatedEmployee.payslips ?? [],
+        taxDocuments: current?.taxDocuments ?? updatedEmployee.taxDocuments ?? [],
+        leaveRecords: mappedFromApi.leaveRecords ?? current?.leaveRecords ?? updatedEmployee.leaveRecords ?? [],
+      };
+
+      const hasMatch = prevEmployees.some(emp => emp.id === merged!.id);
+      if (hasMatch) {
+        return prevEmployees.map(emp => (emp.id === merged!.id ? merged! : emp));
+      }
+      return [...prevEmployees, merged!];
+    });
+
+    const resolved = merged ?? {
+      ...updatedEmployee,
+      ...mappedFromApi,
+      payslips: updatedEmployee.payslips ?? [],
+      taxDocuments: updatedEmployee.taxDocuments ?? [],
+      leaveRecords: mappedFromApi.leaveRecords ?? updatedEmployee.leaveRecords ?? [],
+    };
+
     setCurrentUser(prev => {
-      if (prev && 'payslips' in prev && prev.id === updatedEmployee.id) {
-        return sanitizedEmployee;
+      if (prev && 'payslips' in prev && prev.id === resolved.id) {
+        return resolved;
       }
       return prev;
     });
+
+    return resolved;
   };
 
-  const handleAddNewEmployee = async (newEmployeeData: Omit<Employee, 'id'>) => {
-  if (!authToken) return;
-  const payload = mapEmployeeToApiPayload(newEmployeeData as Employee);
-  const res = await fetch(`${API_URL}/api/employees`, {
+  const handleAddNewEmployee = async (newEmployeeData: Omit<Employee, 'id'>): Promise<Employee> => {
+    if (!authToken) {
+      throw new Error('Not authenticated');
+    }
+
+    const payload = mapEmployeeToApiPayload(newEmployeeData as Employee);
+    const response = await fetch(`${API_URL}/api/employees`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
       body: JSON.stringify(payload),
     });
-    const newEmployee = await res.json();
-    setEmployees(prev => [...prev, mapEmployeeFromApi(newEmployee)]);
+
+    if (!response.ok) {
+      const message = await extractErrorMessage(response);
+      throw new Error(message || 'Failed to create employee');
+    }
+
+    const createdRaw = await response.json();
+    const mapped = mapEmployeeFromApi(createdRaw);
+    setEmployees(prev => [...prev, mapped]);
+    return mapped;
   };
 
-  const handleDeleteEmployee = async (employeeId: string) => {
-    if (window.confirm('Are you sure you want to delete this employee? This action cannot be undone.')) {
-  if (!authToken) return;
-  await fetch(`${API_URL}/api/employees/${employeeId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${authToken}` } });
-      setEmployees(prev => prev.filter(emp => emp.id !== employeeId));
+  const handleDeleteEmployee = async (employeeId: string): Promise<void> => {
+    if (!authToken) {
+      throw new Error('Not authenticated');
     }
+
+    const res = await fetch(`${API_URL}/api/employees/${employeeId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+
+    if (!res.ok) {
+      const message = await extractErrorMessage(res);
+      throw new Error(message || 'Failed to delete employee');
+    }
+
+    setEmployees(prev => prev.filter(emp => emp.id !== employeeId));
   };
 
   const buildPayslipPayload = (employeeId: string, payslip: Payslip) => ({
@@ -491,7 +601,7 @@ const App: React.FC = () => {
     });
 
     if (!res.ok) {
-      const message = await res.text();
+      const message = await extractErrorMessage(res);
       throw new Error(message || 'Failed to create payslip');
     }
 
@@ -540,7 +650,7 @@ const App: React.FC = () => {
     });
 
     if (!res.ok) {
-      const message = await res.text();
+      const message = await extractErrorMessage(res);
       throw new Error(message || 'Failed to update payslip');
     }
 
@@ -588,7 +698,7 @@ const App: React.FC = () => {
     });
 
     if (!res.ok) {
-      const message = await res.text();
+      const message = await extractErrorMessage(res);
       throw new Error(message || 'Failed to delete payslip');
     }
 
@@ -633,6 +743,11 @@ const App: React.FC = () => {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
       body: JSON.stringify(payload),
     });
+    if (!res.ok) {
+      const message = await extractErrorMessage(res);
+      alert(message || 'Failed to create HR user');
+      return;
+    }
     const newUser = await res.json();
     setHrUsers(prev => [...prev, mapHrUserFromApi(newUser)]);
     alert('New HR user added successfully!');
@@ -650,11 +765,16 @@ const App: React.FC = () => {
     if (updatedUser.password) {
       payload.password = updatedUser.password;
     }
-    await fetch(`${API_URL}/api/users/${updatedUser.id}`, {
+    const res = await fetch(`${API_URL}/api/users/${updatedUser.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
       body: JSON.stringify(payload),
     });
+    if (!res.ok) {
+      const message = await extractErrorMessage(res);
+      alert(message || 'Failed to update HR user');
+      return;
+    }
     const { password, ...rest } = updatedUser;
     setHrUsers(prev => prev.map(user => user.id === updatedUser.id ? rest as HRUser : user));
     alert('HR user updated successfully!');
@@ -667,7 +787,8 @@ const App: React.FC = () => {
       headers: { Authorization: `Bearer ${authToken}` },
     });
     if (!res.ok) {
-      alert('Failed to delete HR user. Please try again.');
+      const message = await extractErrorMessage(res);
+      alert(message || 'Failed to delete HR user. Please try again.');
       return;
     }
     setHrUsers(prev => prev.filter(user => user.id !== userId));

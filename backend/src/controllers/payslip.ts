@@ -29,7 +29,7 @@ const sanitizeMonetaryEntries = <T extends EarningsInput | DeductionInput>(
     .filter((entry) => entry.description.trim().length > 0);
 };
 
-const mapPayslipRow = (row: any) => {
+export const mapPayslipRow = (row: any) => {
   const earningsRaw = row?.earnings_breakdown ?? row?.earnings ?? [];
   const deductionsRaw = row?.deductions_breakdown ?? [];
 

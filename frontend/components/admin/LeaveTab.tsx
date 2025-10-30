@@ -8,7 +8,7 @@ import TrashIcon from '../icons/TrashIcon';
 interface LeaveTabProps {
     employees: Employee[];
     companyInfo: Company;
-    onUpdateEmployee: (employee: Employee) => void;
+    onUpdateEmployee: (employee: Employee) => Promise<Employee>;
 }
 
 const ALL_LEAVE_TYPES: LeaveType[] = ['Annual', 'Sick', 'Maternity', 'Paternity', 'Bereavement', 'Unpaid'];

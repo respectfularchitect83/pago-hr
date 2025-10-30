@@ -2,18 +2,16 @@ import React, { useState, useMemo } from 'react';
 import { Employee } from '../../types';
 import SearchIcon from '../icons/SearchIcon';
 import UserPlusIcon from '../icons/UserPlusIcon';
-import TrashIcon from '../icons/TrashIcon';
 
 interface AdminEmployeeListProps {
   employees: Employee[];
   onSelectEmployee: (employee: Employee) => void;
   onAddNew: () => void;
-  onDeleteEmployee: (employeeId: string) => void;
 }
 
 type StatusFilter = 'All' | 'Active' | 'Inactive';
 
-const AdminEmployeeList: React.FC<AdminEmployeeListProps> = ({ employees, onSelectEmployee, onAddNew, onDeleteEmployee }) => {
+const AdminEmployeeList: React.FC<AdminEmployeeListProps> = ({ employees, onSelectEmployee, onAddNew }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('Active');
 
@@ -75,7 +73,7 @@ const AdminEmployeeList: React.FC<AdminEmployeeListProps> = ({ employees, onSele
         </span>
         <input
           type="text"
-          placeholder="Search by name, ID, or position..."
+          placeholder="Search by name, ID, position, or branch..."
           value={searchTerm}
           onChange={e => setSearchTerm(e.target.value)}
           className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-gray-500 focus:border-gray-500"
@@ -92,18 +90,33 @@ const AdminEmployeeList: React.FC<AdminEmployeeListProps> = ({ employees, onSele
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-              <th scope="col" className="relative px-6 py-3">
-                <span className="sr-only">Actions</span>
-              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {filteredEmployees.map((employee) => (
-              <tr key={employee.id} className="hover:bg-gray-50">
+              <tr
+                key={employee.id}
+                className="hover:bg-gray-50 cursor-pointer"
+                onClick={() => onSelectEmployee(employee)}
+              >
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
+                  <div
+                    className="flex items-center focus:outline-none"
+                    role="button"
+                    tabIndex={0}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelectEmployee(employee);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        onSelectEmployee(employee);
+                      }
+                    }}
+                  >
                     <div className="flex-shrink-0 h-20 w-20">
-                      <img className="h-20 w-20 rounded-full object-cover" src={employee.photoUrl} alt="" />
+                      <img className="h-20 w-20 rounded-full object-cover" src={employee.photoUrl} alt="Employee profile" />
                     </div>
                     <div className="ml-4">
                       <div className="text-sm font-medium text-gray-900">{employee.name}</div>
@@ -115,14 +128,6 @@ const AdminEmployeeList: React.FC<AdminEmployeeListProps> = ({ employees, onSele
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{employee.branch || 'N/A'}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   <StatusBadge status={employee.status} />
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex items-center justify-end space-x-2">
-                  <button onClick={() => onSelectEmployee(employee)} className="text-gray-600 hover:text-gray-900">
-                    View / Edit
-                  </button>
-                  <button onClick={(e) => { e.stopPropagation(); onDeleteEmployee(employee.id)}} className="p-2 text-gray-500 hover:text-red-700">
-                    <TrashIcon />
-                  </button>
                 </td>
               </tr>
             ))}

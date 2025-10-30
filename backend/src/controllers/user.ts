@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import pool from '../config/db';
 import bcrypt from 'bcrypt';
 import { AuthRequest } from '../middleware/auth';
+import logger from '../utils/logger';
 
 // List all users (HR, admin, employees)
 export const listUsers = async (req: Request, res: Response) => {
@@ -199,8 +200,27 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'HR users can only delete HR accounts' });
     }
 
-    await pool.query('DELETE FROM users WHERE id = $1', [id]);
-    res.json({ message: 'User deleted' });
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('UPDATE leave_requests SET approved_by = NULL WHERE approved_by = $1', [id]);
+      await client.query('DELETE FROM leave_requests WHERE user_id = $1', [id]);
+      await client.query('DELETE FROM leave_balances WHERE user_id = $1', [id]);
+      await client.query('DELETE FROM messages WHERE sender_id = $1 OR recipient_id = $1', [id]);
+      await client.query('UPDATE payslips SET user_id = NULL WHERE user_id = $1', [id]);
+      await client.query('DELETE FROM users WHERE id = $1', [id]);
+      await client.query('COMMIT');
+      res.json({ message: 'User deleted' });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      logger.error('Failed to cascade delete user', {
+        userId: id,
+        error: err instanceof Error ? err.message : err,
+      });
+      return res.status(500).json({ error: 'Failed to delete user' });
+    } finally {
+      client.release();
+    }
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete user' });
   }

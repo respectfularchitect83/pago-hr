@@ -11,6 +11,7 @@ import employeeRoutes from './routes/employees';
 import payslipRoutes from './routes/payslips';
 import leaveRoutes from './routes/leave';
 import companyRoutes from './routes/company';
+import ensureLatestSchema from './db/ensureLatestSchema';
 
 // Load environment variables
 config();
@@ -83,6 +84,7 @@ app.use((err: any, req: any, res: any, next: any) => {
 async function startServer() {
   try {
     await connectDB();
+    await ensureLatestSchema();
     app.listen(PORT, () => {
       logger.info(`Server running on port ${PORT}`);
     });
