@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import pool from '../config/db';
 import bcrypt from 'bcrypt';
+import { AuthRequest } from '../middleware/auth';
 
 // List all users (HR, admin, employees)
 export const listUsers = async (req: Request, res: Response) => {
@@ -179,13 +180,26 @@ export const updateUser = async (req: Request, res: Response) => {
 };
 
 // Delete a user by id
-export const deleteUser = async (req: Request, res: Response) => {
+export const deleteUser = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const result = await pool.query('DELETE FROM users WHERE id = $1 RETURNING *', [id]);
-    if (result.rows.length === 0) {
+    const targetResult = await pool.query('SELECT id, role FROM users WHERE id = $1', [id]);
+    if (targetResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
+
+    const currentUserRole = req.user?.role;
+    const targetUser = targetResult.rows[0];
+
+    if (targetUser.role === 'admin' && currentUserRole !== 'admin') {
+      return res.status(403).json({ error: 'Only administrators can delete admin users' });
+    }
+
+    if (currentUserRole === 'hr' && targetUser.role !== 'hr') {
+      return res.status(403).json({ error: 'HR users can only delete HR accounts' });
+    }
+
+    await pool.query('DELETE FROM users WHERE id = $1', [id]);
     res.json({ message: 'User deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete user' });

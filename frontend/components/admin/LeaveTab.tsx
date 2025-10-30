@@ -62,7 +62,7 @@ const LeaveTab: React.FC<LeaveTabProps> = ({ employees, companyInfo, onUpdateEmp
         return calculateLeaveBalances(selectedEmployee, companyInfo);
     }, [selectedEmployee, companyInfo]);
     
-    const handleAddLeave = (e: React.FormEvent) => {
+    const handleAddLeave = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedEmployee || newLeave.days <= 0) {
             alert("Please select an employee and ensure the leave duration is valid.");
@@ -78,20 +78,30 @@ const LeaveTab: React.FC<LeaveTabProps> = ({ employees, companyInfo, onUpdateEmp
             ...selectedEmployee,
             leaveRecords: [...selectedEmployee.leaveRecords, newRecord]
         };
-        
-        onUpdateEmployee(updatedEmployee);
+        try {
+            await onUpdateEmployee(updatedEmployee);
+        } catch (err) {
+            console.error(err);
+            alert('Failed to save leave record. Please try again.');
+            return;
+        }
         
         // Reset form
         setNewLeave({ type: 'Annual', startDate: '', endDate: '', days: 0 });
     };
     
-    const handleDeleteLeave = (leaveId: string) => {
+    const handleDeleteLeave = async (leaveId: string) => {
         if (!selectedEmployee) return;
 
         if (window.confirm("Are you sure you want to delete this leave record?")) {
             const updatedRecords = selectedEmployee.leaveRecords.filter(rec => rec.id !== leaveId);
             const updatedEmployee: Employee = { ...selectedEmployee, leaveRecords: updatedRecords };
-            onUpdateEmployee(updatedEmployee);
+            try {
+                await onUpdateEmployee(updatedEmployee);
+            } catch (err) {
+                console.error(err);
+                alert('Failed to delete leave record. Please try again.');
+            }
         }
     };
 

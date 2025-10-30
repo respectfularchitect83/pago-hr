@@ -35,6 +35,7 @@ export const createEmployee = async (req: Request, res: Response) => {
       branch,
       gender,
       photo_url,
+      leaverecords,
     } = req.body;
 
     const toNumberOrNull = (value: any) => {
@@ -54,6 +55,9 @@ export const createEmployee = async (req: Request, res: Response) => {
     const joinDate = startdate && startdate !== '' ? startdate : new Date().toISOString().split('T')[0];
     const emailLower = email ? email.toLowerCase() : null;
     const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
+    const normalizedLeaveRecords = leaverecords
+      ? (typeof leaverecords === 'string' ? leaverecords : JSON.stringify(leaverecords))
+      : JSON.stringify([]);
 
     const client = await pool.connect();
     try {
@@ -80,12 +84,13 @@ export const createEmployee = async (req: Request, res: Response) => {
             appointmenthours,
             branch,
             gender,
-            photo_url
+            photo_url,
+            leave_records
           )
           VALUES (
             $1, $2, $3, $4, $5, $6, $7,
             $8, $9, $10, $11, $12, $13::jsonb,
-            $14, $15, $16, $17, $18, $19
+            $14, $15, $16, $17, $18, $19, $20::jsonb
           )
           RETURNING *`,
         [
@@ -108,6 +113,7 @@ export const createEmployee = async (req: Request, res: Response) => {
           branch || null,
           gender || null,
           photo_url || null,
+          normalizedLeaveRecords,
         ]
       );
 
@@ -199,6 +205,7 @@ export const updateEmployee = async (req: Request, res: Response) => {
       branch,
       gender,
       photo_url,
+      leaverecords,
     } = req.body;
 
     const toNumberOrNull = (value: any) => {
@@ -217,6 +224,9 @@ export const updateEmployee = async (req: Request, res: Response) => {
     const parsedAppointmentHours = toNumberOrNull(appointmenthours);
     const emailLower = email ? email.toLowerCase() : null;
     const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
+    const normalizedLeaveRecords = leaverecords
+      ? (typeof leaverecords === 'string' ? leaverecords : JSON.stringify(leaverecords))
+      : JSON.stringify([]);
 
     const client = await pool.connect();
     try {
@@ -232,29 +242,30 @@ export const updateEmployee = async (req: Request, res: Response) => {
       const emailToPersist = emailLower ?? (existingEmployee.email ? existingEmployee.email.toLowerCase() : null);
 
       const updateResult = await client.query(
-        `UPDATE employees
-            SET employeeid=$1,
-                firstname=$2,
-                lastname=$3,
-                email=$4,
-                status=$5,
-                position=$6,
-                department=$7,
-                startdate=$8,
-                taxnumber=$9,
-                idnumber=$10,
-                phonenumber=$11,
-                address=$12,
-                bankdetails=$13::jsonb,
-                terminationdate=$14,
-                basicsalary=$15,
-                appointmenthours=$16,
-                branch=$17,
-                gender=$18,
-                photo_url=$19,
-                updated_at=NOW()
-          WHERE id=$20
-          RETURNING *`,
+    `UPDATE employees
+      SET employeeid=$1,
+        firstname=$2,
+        lastname=$3,
+        email=$4,
+        status=$5,
+        position=$6,
+        department=$7,
+        startdate=$8,
+        taxnumber=$9,
+        idnumber=$10,
+        phonenumber=$11,
+        address=$12,
+        bankdetails=$13::jsonb,
+        terminationdate=$14,
+        basicsalary=$15,
+        appointmenthours=$16,
+        branch=$17,
+        gender=$18,
+        photo_url=$19,
+        leave_records=$20::jsonb,
+        updated_at=NOW()
+      WHERE id=$21
+      RETURNING *`,
         [
           employeeid,
           firstname,
@@ -275,6 +286,7 @@ export const updateEmployee = async (req: Request, res: Response) => {
           branch || null,
           gender || null,
           photo_url || null,
+          normalizedLeaveRecords,
           id,
         ]
       );

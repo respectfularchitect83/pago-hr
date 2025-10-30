@@ -10,7 +10,8 @@ export interface Deduction {
 }
 
 export interface Payslip {
-  id: string;
+  id?: string;
+  employeeId?: string;
   payPeriodStart: string;
   payPeriodEnd: string;
   payDate: string;
@@ -18,6 +19,14 @@ export interface Payslip {
   deductions: Deduction[];
   normalOvertimeHours?: number;
   doubleOvertimeHours?: number;
+  status?: string;
+  netSalary?: number;
+  basicSalary?: number;
+  allowancesTotal?: number;
+  deductionsTotal?: number;
+  taxTotal?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface TaxDocument {

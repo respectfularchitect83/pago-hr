@@ -102,8 +102,8 @@ const AdminEmployeeList: React.FC<AdminEmployeeListProps> = ({ employees, onSele
               <tr key={employee.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
-                    <div className="flex-shrink-0 h-10 w-10">
-                      <img className="h-10 w-10 rounded-full" src={employee.photoUrl} alt="" />
+                    <div className="flex-shrink-0 h-20 w-20">
+                      <img className="h-20 w-20 rounded-full object-cover" src={employee.photoUrl} alt="" />
                     </div>
                     <div className="ml-4">
                       <div className="text-sm font-medium text-gray-900">{employee.name}</div>

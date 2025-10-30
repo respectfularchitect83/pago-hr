@@ -4,12 +4,12 @@ import { auth, requireRole } from '../middleware/auth';
 
 const router = Router();
 
-router.use(auth, requireRole(['admin']));
+router.use(auth);
 
-router.get('/', listUsers);
-router.post('/', createUser);
-router.get('/:id', getUser);
-router.put('/:id', updateUser);
-router.delete('/:id', deleteUser);
+router.get('/', requireRole(['admin', 'hr']), listUsers);
+router.post('/', requireRole(['admin']), createUser);
+router.get('/:id', requireRole(['admin', 'hr']), getUser);
+router.put('/:id', requireRole(['admin']), updateUser);
+router.delete('/:id', requireRole(['admin', 'hr']), deleteUser);
 
 export default router;

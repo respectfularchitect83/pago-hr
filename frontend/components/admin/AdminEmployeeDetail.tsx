@@ -13,11 +13,18 @@ interface AdminEmployeeDetailProps {
   companyInfo: Company;
   onBack: () => void;
   onSave: (employee: Employee) => void;
+    onCreatePayslip: (employeeId: string, payslip: Payslip) => Promise<Payslip>;
+    onUpdatePayslip: (employeeId: string, payslip: Payslip) => Promise<Payslip>;
+    onDeletePayslip: (employeeId: string, payslipId: string) => Promise<void>;
   isNew?: boolean;
 }
 
-const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, companyInfo, onBack, onSave, isNew = false }) => {
-  const [localEmployee, setLocalEmployee] = useState<Employee>(employee);
+const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, companyInfo, onBack, onSave, onCreatePayslip, onUpdatePayslip, onDeletePayslip, isNew = false }) => {
+    const [localEmployee, setLocalEmployee] = useState<Employee>({
+        ...employee,
+        payslips: [...(employee.payslips || [])],
+        leaveRecords: [...(employee.leaveRecords || [])],
+    });
     const [isEditing, setIsEditing] = useState(isNew);
   const [isPayslipEditorOpen, setIsPayslipEditorOpen] = useState(false);
   const [editingPayslip, setEditingPayslip] = useState<Payslip | null>(null);
@@ -27,7 +34,11 @@ const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, com
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setLocalEmployee(employee);
+    setLocalEmployee({
+        ...employee,
+        payslips: [...(employee.payslips || [])],
+        leaveRecords: [...(employee.leaveRecords || [])],
+    });
     if (!isNew) {
         setIsEditing(false);
     }
@@ -113,18 +124,32 @@ const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, com
     }
   };
 
-  const handleSavePayslip = (payslip: Payslip) => {
-    const updatedPayslips = editingPayslip
-      ? localEmployee.payslips.map(p => p.id === payslip.id ? payslip : p)
-      : [...(localEmployee.payslips || []), { ...payslip, id: `ps-${Date.now()}` }];
-    
-    const updatedEmployee = { ...localEmployee, payslips: updatedPayslips };
-    setLocalEmployee(updatedEmployee);
-    if (!isNew) {
-        onSave(updatedEmployee); // Persist change immediately for existing employees
+    const handleSavePayslip = async (payslip: Payslip) => {
+        if (!localEmployee.id || localEmployee.id === 'new') {
+                alert('Please save the employee before managing payslips.');
+                return;
+        }
+
+    try {
+        if (editingPayslip && editingPayslip.id) {
+            const updated = await onUpdatePayslip(localEmployee.id, { ...payslip, id: editingPayslip.id });
+            setLocalEmployee(prev => ({
+                ...prev,
+                payslips: (prev.payslips || []).map(p => (p.id && updated.id && p.id === updated.id) ? updated : p),
+            }));
+        } else {
+            const created = await onCreatePayslip(localEmployee.id, { ...payslip, employeeId: localEmployee.id });
+            setLocalEmployee(prev => ({
+                ...prev,
+                payslips: [...(prev.payslips || []), created],
+            }));
+        }
+        setIsPayslipEditorOpen(false);
+        setEditingPayslip(null);
+    } catch (error) {
+        console.error(error);
+        alert('Failed to save payslip. Please try again.');
     }
-    setIsPayslipEditorOpen(false);
-    setEditingPayslip(null);
   };
 
   const handleEditPayslip = (payslip: Payslip) => {
@@ -137,14 +162,23 @@ const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, com
     setIsPayslipEditorOpen(true);
   };
   
-  const handleDeletePayslip = (payslipId: string) => {
-    if (window.confirm("Are you sure you want to delete this payslip?")) {
-        const updatedPayslips = localEmployee.payslips.filter(p => p.id !== payslipId);
-        const updatedEmployee = { ...localEmployee, payslips: updatedPayslips };
-        setLocalEmployee(updatedEmployee);
-         if (!isNew) {
-            onSave(updatedEmployee); // Persist change
-        }
+    const handleDeletePayslip = async (payslipId?: string) => {
+        if (!payslipId || !localEmployee.id || localEmployee.id === 'new') {
+        return;
+    }
+    if (!window.confirm("Are you sure you want to delete this payslip?")) {
+        return;
+    }
+
+    try {
+        await onDeletePayslip(localEmployee.id, payslipId);
+        setLocalEmployee(prev => ({
+            ...prev,
+            payslips: (prev.payslips || []).filter(p => p.id !== payslipId),
+        }));
+    } catch (error) {
+        console.error(error);
+        alert('Failed to delete payslip. Please try again.');
     }
   };
 
@@ -365,7 +399,7 @@ const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, com
             </div>
             <div className="space-y-2">
                 {(localEmployee.payslips || []).sort((a,b) => new Date(b.payDate).getTime() - new Date(a.payDate).getTime()).map(p => (
-                    <div key={p.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div key={p.id ?? `${p.payDate}-${p.payPeriodStart}` } className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <div>
                             <p className="font-medium text-gray-800">Pay Date: {p.payDate}</p>
                             <p className="text-sm text-gray-600">Period: {p.payPeriodStart} to {p.payPeriodEnd}</p>

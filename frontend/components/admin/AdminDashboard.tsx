@@ -1,7 +1,7 @@
 
 
 import React, { useState } from 'react';
-import { Employee, Company, HRUser, Message } from '../../types';
+import { Employee, Company, HRUser, Message, Payslip } from '../../types';
 import AdminEmployeeList from './AdminEmployeeList';
 import AdminEmployeeDetail from './AdminEmployeeDetail';
 import LogoutIcon from '../icons/LogoutIcon';
@@ -25,6 +25,9 @@ interface AdminDashboardProps {
   onAddNewHRUser: (newUser: Omit<HRUser, 'id'>) => void;
   onUpdateHRUser: (user: HRUser) => void;
   onDeleteHRUser: (userId: string) => void;
+  onCreatePayslip: (employeeId: string, payslip: Payslip) => Promise<Payslip>;
+  onUpdatePayslip: (employeeId: string, payslip: Payslip) => Promise<Payslip>;
+  onDeletePayslip: (employeeId: string, payslipId: string) => Promise<void>;
   onUpdateMessageStatus: (messageId: string, status: 'read' | 'unread') => void;
   onSendMessage: (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => void;
 }
@@ -32,13 +35,17 @@ interface AdminDashboardProps {
 type AdminView = 'employees' | 'leave' | 'messages' | 'reports' | 'hrUsers' | 'settings';
 type EmployeeMode = 'list' | 'edit' | 'add';
 
-const blankEmployee: Omit<Employee, 'id' | 'payslips' | 'taxDocuments' | 'leaveRecords'> = {
+const blankEmployee: Employee = {
+    id: 'new',
     name: '',
     position: '',
+    payslips: [],
+    taxDocuments: [],
+    leaveRecords: [],
     photoUrl: 'https://i.pravatar.cc/150',
     startDate: new Date().toISOString().split('T')[0],
     employeeId: '',
-  email: '',
+    email: '',
     taxNumber: '',
     idNumber: '',
     phoneNumber: '',
@@ -64,6 +71,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     onUpdateCompanyInfo,
     onAddNewHRUser,
     onUpdateHRUser,
+  onCreatePayslip,
+  onUpdatePayslip,
+  onDeletePayslip,
   onDeleteHRUser,
     onUpdateMessageStatus,
     onSendMessage,
@@ -130,11 +140,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     switch(employeeMode) {
         case 'add':
             return (
-                <AdminEmployeeDetail
-                    employee={blankEmployee as Employee}
+        <AdminEmployeeDetail
+          employee={blankEmployee}
                     companyInfo={companyInfo}
                     onBack={handleBackToList}
                     onSave={handleCreateEmployee}
+          onCreatePayslip={onCreatePayslip}
+          onUpdatePayslip={onUpdatePayslip}
+          onDeletePayslip={onDeletePayslip}
                     isNew
                 />
             );
@@ -146,6 +159,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     companyInfo={companyInfo}
                     onBack={handleBackToList}
                     onSave={handleSaveEmployee}
+          onCreatePayslip={onCreatePayslip}
+          onUpdatePayslip={onUpdatePayslip}
+          onDeletePayslip={onDeletePayslip}
                     />
                 );
             }
@@ -167,27 +183,40 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   return (
     <div className="container mx-auto max-w-6xl p-4 sm:p-6 lg:p-8">
-       <header className="flex justify-between items-center p-6 bg-white rounded-xl shadow-md mb-6">
-            <div className="flex items-center">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">HR Admin</h1>
-                <p className="text-sm text-gray-500">Payroll & Employee Management</p>
-              </div>
-              {currentUser.photoUrl && (
-                <img 
-                    src={currentUser.photoUrl} 
-                    alt={currentUser.username}
-                    className="h-12 w-12 rounded-full object-cover ml-4 border-2 border-gray-200"
-                />
+       <header className="p-6 bg-white rounded-xl shadow-md mb-6">
+            <div className="flex flex-col gap-4">
+              {companyInfo.logoUrl && (
+                <div className="flex justify-center sm:justify-start">
+                  <img
+                    src={companyInfo.logoUrl}
+                    alt={`${companyInfo.name} logo`}
+                    className="h-16 sm:h-20 object-contain"
+                  />
+                </div>
               )}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center">
+                  <div>
+                    <h1 className="text-2xl font-bold text-gray-900">HR Admin</h1>
+                    <p className="text-sm text-gray-500">Payroll & Employee Management</p>
+                  </div>
+                  {currentUser.photoUrl && (
+                    <img
+                      src={currentUser.photoUrl}
+                      alt={currentUser.username}
+                      className="h-12 w-12 rounded-full object-cover ml-4 border-2 border-gray-200"
+                    />
+                  )}
+                </div>
+                <button
+                  onClick={onLogout}
+                  className="self-end sm:self-auto mt-4 sm:mt-0 p-3 bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200 transition-colors"
+                  aria-label="Logout"
+                >
+                  <LogoutIcon />
+                </button>
+              </div>
             </div>
-            <button
-                onClick={onLogout}
-                className="p-3 bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200 transition-colors"
-                aria-label="Logout"
-            >
-                <LogoutIcon />
-            </button>
         </header>
 
       <div className="bg-white rounded-xl shadow-md animate-fade-in">

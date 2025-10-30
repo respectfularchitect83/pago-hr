@@ -56,7 +56,7 @@ const PayslipList: React.FC<PayslipListProps> = ({ employee, companyInfo, onSele
                 displayedPayslips.length > 0 ? (
                     <ul className="space-y-3 pt-4">
                         {displayedPayslips.map(payslip => (
-                        <li key={payslip.id}>
+                        <li key={payslip.id ?? `${payslip.payDate}-${payslip.payPeriodStart}` }>
                             <button
                             onClick={() => onSelectPayslip(payslip)}
                             className="w-full flex items-center justify-between p-4 bg-white rounded-lg hover:bg-gray-50 transition-all duration-300 text-left border"

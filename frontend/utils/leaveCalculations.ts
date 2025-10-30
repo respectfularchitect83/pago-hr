@@ -67,7 +67,7 @@ export const calculateLeaveBalances = (employee: Employee, company: Company): Le
         return balances;
     }
     
-    const diffTime = Math.abs(today.getTime() - startDate.getTime());
+    const diffTime = Math.max(today.getTime() - startDate.getTime(), 0);
     const diffMonths = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 30.4375)); // Average days in a month
 
     for (const type in company.leaveSettings) {
@@ -76,7 +76,16 @@ export const calculateLeaveBalances = (employee: Employee, company: Company): Le
 
         if (leaveType === 'Unpaid') continue; // Unpaid leave is not accrued
 
-        const accrued = (annualDays / 12) * diffMonths;
+        let accrued: number;
+        if (leaveType === 'Annual') {
+            const monthlyRate = annualDays / 12;
+            accrued = monthlyRate * diffMonths;
+            if (annualDays > 0) {
+                accrued = Math.min(accrued, annualDays);
+            }
+        } else {
+            accrued = annualDays;
+        }
 
         const taken = (employee.leaveRecords || [])
             .filter(rec => rec.type === leaveType)
