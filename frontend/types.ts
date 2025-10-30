@@ -44,6 +44,7 @@ export interface Employee {
   photoUrl: string;
   startDate: string;
   employeeId: string;
+  email?: string;
   taxNumber: string;
   idNumber: string;
   phoneNumber: string;
@@ -60,6 +61,7 @@ export interface Employee {
   branch?: string;
   gender: 'Male' | 'Female';
   leaveRecords: LeaveRecord[];
+  password?: string;
 }
 
 export interface PublicEmployeeInfo {
@@ -83,6 +85,10 @@ export interface HRUser {
     id: string;
     username: string;
     photoUrl?: string;
+  firstName?: string;
+  lastName?: string;
+  role?: 'admin' | 'hr';
+  password?: string;
 }
 
 // New Message Type for two-way communication

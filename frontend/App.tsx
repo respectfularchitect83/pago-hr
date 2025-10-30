@@ -37,6 +37,7 @@ const mapEmployeeFromApi = (raw: any): Employee => {
     photoUrl: raw?.photoUrl ?? raw?.photo_url ?? DEFAULT_PHOTO_URL,
     startDate: (raw?.startdate ?? raw?.startDate ?? new Date().toISOString().split('T')[0]),
     employeeId: (raw?.employeeid ?? raw?.employeeId ?? '').toString(),
+    email: raw?.email ?? raw?.mail ?? '',
     taxNumber: raw?.taxnumber ?? raw?.taxNumber ?? '',
     idNumber: raw?.idnumber ?? raw?.idNumber ?? '',
     phoneNumber: raw?.phonenumber ?? raw?.phoneNumber ?? '',
@@ -55,21 +56,30 @@ const mapEmployeeFromApi = (raw: any): Employee => {
 
 const mapEmployeeToApiPayload = (employee: Employee) => {
   const [firstName, ...rest] = employee.name.split(' ');
-  return {
+  const payload: Record<string, any> = {
     employeeid: employee.employeeId,
     firstname: firstName || employee.name,
     lastname: rest.join(' ') || employee.name,
-    email: '',
     status: employee.status,
     position: employee.position,
     department: employee.branch,
   };
+  if (employee.email) {
+    payload.email = employee.email;
+  }
+  if (employee.password) {
+    payload.password = employee.password;
+  }
+  return payload;
 };
 
 const mapHrUserFromApi = (user: any): HRUser => ({
   id: user?.id ? String(user.id) : (user?.email ?? user?.username ?? 'user'),
   username: user?.email ?? user?.username ?? 'user',
   photoUrl: user?.photo_url ?? user?.photoUrl ?? undefined,
+  firstName: user?.first_name ?? user?.firstName,
+  lastName: user?.last_name ?? user?.lastName,
+  role: user?.role,
 });
 
 const App: React.FC = () => {
@@ -183,7 +193,8 @@ const App: React.FC = () => {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
       body: JSON.stringify(payload),
     });
-    setEmployees(prevEmployees => prevEmployees.map(emp => emp.id === updatedEmployee.id ? updatedEmployee : emp));
+    const { password, ...rest } = updatedEmployee;
+    setEmployees(prevEmployees => prevEmployees.map(emp => emp.id === updatedEmployee.id ? rest as Employee : emp));
   };
 
   const handleAddNewEmployee = async (newEmployeeData: Omit<Employee, 'id'>) => {
@@ -218,10 +229,19 @@ const App: React.FC = () => {
 
   const handleAddNewHRUser = async (newUserData: Omit<HRUser, 'id'>) => {
   if (!authToken) return;
-  const res = await fetch(`${API_URL}/api/users`, {
+  const payload: Record<string, any> = {
+      username: newUserData.username,
+      email: newUserData.username,
+      password: newUserData.password,
+      role: newUserData.role ?? 'hr',
+      first_name: newUserData.firstName,
+      last_name: newUserData.lastName,
+      photoUrl: newUserData.photoUrl,
+    };
+    const res = await fetch(`${API_URL}/api/users`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
-      body: JSON.stringify(newUserData),
+      body: JSON.stringify(payload),
     });
     const newUser = await res.json();
     setHrUsers(prev => [...prev, mapHrUserFromApi(newUser)]);
@@ -230,12 +250,23 @@ const App: React.FC = () => {
 
   const handleUpdateHRUser = async (updatedUser: HRUser) => {
   if (!authToken) return;
-  await fetch(`${API_URL}/api/users/${updatedUser.id}`, {
+    const payload: Record<string, any> = {
+      email: updatedUser.username,
+      role: updatedUser.role ?? 'hr',
+      first_name: updatedUser.firstName,
+      last_name: updatedUser.lastName,
+      photoUrl: updatedUser.photoUrl,
+    };
+    if (updatedUser.password) {
+      payload.password = updatedUser.password;
+    }
+    await fetch(`${API_URL}/api/users/${updatedUser.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
-      body: JSON.stringify(updatedUser),
+      body: JSON.stringify(payload),
     });
-    setHrUsers(prev => prev.map(user => user.id === updatedUser.id ? updatedUser : user));
+    const { password, ...rest } = updatedUser;
+    setHrUsers(prev => prev.map(user => user.id === updatedUser.id ? rest as HRUser : user));
     alert('HR user updated successfully!');
   };
 

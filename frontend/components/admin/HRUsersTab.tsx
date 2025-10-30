@@ -19,17 +19,25 @@ const HRUsersTab: React.FC<HRUsersTabProps> = ({ users, onAddUser, onUpdateUser 
     const [username, setUsername] = useState('');
     const [photoPreview, setPhotoPreview] = useState<string | null>(null);
     const [error, setError] = useState('');
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [role, setRole] = useState<'hr' | 'admin'>('hr');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (view === 'edit' && selectedUser) {
             setUsername(selectedUser.username);
             setPhotoPreview(selectedUser.photoUrl || null);
+            setRole(selectedUser.role ?? 'hr');
         } else {
             setUsername('');
             setPhotoPreview(null);
             setSelectedUser(null);
+            setRole('hr');
         }
+        setPassword('');
+        setConfirmPassword('');
+        setError('');
     }, [view, selectedUser]);
 
 
@@ -53,12 +61,51 @@ const HRUsersTab: React.FC<HRUsersTabProps> = ({ users, onAddUser, onUpdateUser 
             return;
         }
 
+        if (view === 'add' && !password) {
+            setError('Password is required for new HR users.');
+            return;
+        }
+
+        if (password || confirmPassword) {
+            if (password !== confirmPassword) {
+                setError('Passwords do not match.');
+                return;
+            }
+        }
+
+        const deriveNameParts = (value: string): [string, string] => {
+            const localPart = value.split('@')[0] || '';
+            if (!localPart) {
+                return ['HR', 'User'];
+            }
+            const cleaned = localPart.replace(/[^a-zA-Z\.\-\s_]/g, ' ');
+            const segments = cleaned
+                .split(/[\.\-\s_]+/)
+                .filter(Boolean)
+                .map(segment => segment.charAt(0).toUpperCase() + segment.slice(1));
+            if (segments.length === 0) {
+                return ['HR', 'User'];
+            }
+            const first = segments[0];
+            const last = segments.slice(1).join(' ') || 'User';
+            return [first, last];
+        };
+
+        const [firstName, lastName] = deriveNameParts(username);
+
         if (view === 'add') {
             if (users.some(u => u.username.toLowerCase() === username.toLowerCase())) {
                 setError('Username already exists.');
                 return;
             }
-            onAddUser({ username, photoUrl: photoPreview || undefined });
+            onAddUser({
+                username,
+                photoUrl: photoPreview || undefined,
+                password: password || undefined,
+                role,
+                firstName,
+                lastName,
+            });
         } else if (view === 'edit' && selectedUser) {
              if (users.some(u => u.username.toLowerCase() === username.toLowerCase() && u.id !== selectedUser.id)) {
                 setError('Username already exists.');
@@ -68,6 +115,10 @@ const HRUsersTab: React.FC<HRUsersTabProps> = ({ users, onAddUser, onUpdateUser 
                 ...selectedUser,
                 username,
                 photoUrl: photoPreview || undefined,
+                role,
+            }
+            if (password) {
+                updatedUser.password = password;
             }
             onUpdateUser(updatedUser);
         }
@@ -147,18 +198,55 @@ const HRUsersTab: React.FC<HRUsersTabProps> = ({ users, onAddUser, onUpdateUser 
                         />
                     </div>
                 </div>
+
                 <div>
-                    <label className="block text-sm font-medium text-gray-700">Username</label>
+                    <label className="block text-sm font-medium text-gray-700">Email / Username</label>
                     <input
-                        type="text"
+                        type="email"
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
                         className="mt-1 w-full p-2 border border-gray-300 rounded-md"
+                        autoComplete="off"
+                        required
                     />
                 </div>
-                 <div className="text-center pt-2">
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">Role</label>
+                    <select
+                        value={role}
+                        onChange={(e) => setRole(e.target.value as 'hr' | 'admin')}
+                        className="mt-1 w-full p-2 border border-gray-300 rounded-md"
+                    >
+                        <option value="hr">HR</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">Password</label>
+                    <input
+                        type="password"
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        className="mt-1 w-full p-2 border border-gray-300 rounded-md"
+                        placeholder={view === 'add' ? 'Create a password' : 'Leave blank to keep current password'}
+                    />
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">Confirm Password</label>
+                    <input
+                        type="password"
+                        value={confirmPassword}
+                        onChange={e => setConfirmPassword(e.target.value)}
+                        className="mt-1 w-full p-2 border border-gray-300 rounded-md"
+                    />
+                </div>
+
+                <div className="text-center pt-2">
                     <p className="text-xs text-gray-500">
-                        Password management is disabled in this demo. In a real application, passwords would be managed via a secure backend process.
+                        Passwords are required when adding new HR accounts. For existing users, leave the password blank to keep it unchanged.
                     </p>
                 </div>
                 {error && <p className="text-sm text-red-600">{error}</p>}

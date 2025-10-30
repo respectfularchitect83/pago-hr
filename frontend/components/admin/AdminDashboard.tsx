@@ -37,6 +37,7 @@ const blankEmployee: Omit<Employee, 'id' | 'payslips' | 'taxDocuments' | 'leaveR
     photoUrl: 'https://i.pravatar.cc/150',
     startDate: new Date().toISOString().split('T')[0],
     employeeId: '',
+  email: '',
     taxNumber: '',
     idNumber: '',
     phoneNumber: '',

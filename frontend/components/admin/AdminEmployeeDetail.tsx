@@ -18,9 +18,12 @@ interface AdminEmployeeDetailProps {
 
 const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, companyInfo, onBack, onSave, isNew = false }) => {
   const [localEmployee, setLocalEmployee] = useState<Employee>(employee);
-  const [isEditing, setIsEditing] = useState(isNew);
+    const [isEditing, setIsEditing] = useState(isNew);
   const [isPayslipEditorOpen, setIsPayslipEditorOpen] = useState(false);
   const [editingPayslip, setEditingPayslip] = useState<Payslip | null>(null);
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [formError, setFormError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -28,6 +31,9 @@ const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, com
     if (!isNew) {
         setIsEditing(false);
     }
+        setPassword('');
+        setConfirmPassword('');
+        setFormError(null);
   }, [employee, isNew]);
 
   const handleFieldChange = (field: keyof Employee | string, value: string | 'Active' | 'Inactive' | 'Male' | 'Female') => {
@@ -56,11 +62,31 @@ const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, com
     }
   };
   
-  const handleSaveClick = () => {
-    onSave(localEmployee);
+    const handleSaveClick = () => {
+        setFormError(null);
+
+        if (isNew && !password) {
+                setFormError('A password is required when creating a new employee account.');
+                return;
+        }
+
+        if (password || confirmPassword) {
+                if (password !== confirmPassword) {
+                        setFormError('Passwords do not match.');
+                        return;
+                }
+        }
+
+        const employeeToSave: Employee = password
+                ? { ...localEmployee, password }
+                : { ...localEmployee };
+
+        onSave(employeeToSave);
     if (!isNew) {
         setIsEditing(false);
     }
+        setPassword('');
+        setConfirmPassword('');
   };
   
   const handleCancelClick = () => {
@@ -154,6 +180,12 @@ const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, com
          </div>
       </div>
 
+      {formError && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+            {formError}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-1 space-y-4">
             <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">Personal Info</h3>
@@ -183,6 +215,34 @@ const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, com
             </div>
 
             <EditableField label="Full Name" value={localEmployee.name} onChange={val => handleFieldChange('name', val)} isEditing={isEditing} />
+            <EditableField label="Account Email" value={localEmployee.email || ''} onChange={val => handleFieldChange('email', val)} isEditing={isEditing} />
+
+            {isEditing && (
+                <div className="space-y-3">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">Set Password</label>
+                        <input
+                            type="password"
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                            className="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500 sm:text-sm"
+                            placeholder={isNew ? 'Create a password for this employee' : 'Leave blank to keep existing password'}
+                        />
+                        {!isNew && (
+                            <p className="text-xs text-gray-500 mt-1">Leave blank to keep the current password.</p>
+                        )}
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">Confirm Password</label>
+                        <input
+                            type="password"
+                            value={confirmPassword}
+                            onChange={e => setConfirmPassword(e.target.value)}
+                            className="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500 sm:text-sm"
+                        />
+                    </div>
+                </div>
+            )}
             
             {isEditing ? (
                 <div>
