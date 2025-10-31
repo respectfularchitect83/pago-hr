@@ -26,8 +26,10 @@ const MarketingLoginModal: React.FC<MarketingLoginModalProps> = ({
   const [employeePassword, setEmployeePassword] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
-  const requiresTenantInput = tenantSlug === 'default';
-  const [tenantInput, setTenantInput] = useState(requiresTenantInput ? '' : tenantSlug);
+  const [tenantInput, setTenantInput] = useState('');
+  const [tenantStatus, setTenantStatus] = useState<{ tone: 'success' | 'error' | 'info'; message: string } | null>(null);
+  const [verifiedTenantSlug, setVerifiedTenantSlug] = useState<string | null>(null);
+  const [isTenantVerified, setIsTenantVerified] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -40,14 +42,57 @@ const MarketingLoginModal: React.FC<MarketingLoginModalProps> = ({
       setErrorMessage('');
       setIsSubmitting(false);
       setActiveTab('employee');
-      setTenantInput(tenantSlug === 'default' ? '' : tenantSlug);
+      setTenantInput('');
+      setVerifiedTenantSlug(null);
+      setIsTenantVerified(false);
+      setTenantStatus(null);
       return;
     }
 
-    if (tenantSlug !== 'default') {
-      setTenantInput(tenantSlug);
+    const initialSlug = tenantSlug === 'default' ? '' : tenantSlug;
+    setTenantInput(initialSlug);
+    if (initialSlug) {
+      setVerifiedTenantSlug(initialSlug);
+      setIsTenantVerified(true);
+      setTenantStatus({ tone: 'info', message: `You are signing into ${initialSlug}` });
+    } else {
+      setVerifiedTenantSlug(null);
+      setIsTenantVerified(false);
+      setTenantStatus(null);
     }
   }, [isOpen, tenantSlug]);
+
+  const sanitizeTenantSlug = (value: string): string => {
+    if (!value) {
+      return '';
+    }
+
+    return value
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9-]/g, '')
+      .replace(/^-+/, '')
+      .replace(/-+$/, '');
+  };
+
+  const handleVerifyTenant = () => {
+    const sanitized = sanitizeTenantSlug(tenantInput);
+
+    if (!sanitized) {
+      setTenantStatus({ tone: 'error', message: 'Add a valid workspace subdomain.' });
+      setVerifiedTenantSlug(null);
+      setIsTenantVerified(false);
+      setErrorMessage('');
+      return;
+    }
+
+    setTenantInput(sanitized);
+    setTenantStatus({ tone: 'success', message: `You are signing into ${sanitized}` });
+    setVerifiedTenantSlug(sanitized);
+    setIsTenantVerified(true);
+    setErrorMessage('');
+    onResolveTenantSlug?.(sanitized);
+  };
 
   const headingId = useMemo(() => `marketing-login-modal-${Math.random().toString(36).slice(2, 8)}`, []);
 
@@ -61,9 +106,8 @@ const MarketingLoginModal: React.FC<MarketingLoginModalProps> = ({
     setIsSubmitting(true);
 
     try {
-      const resolvedTenantSlug = (requiresTenantInput ? tenantInput.trim() : tenantSlug.trim()).toLowerCase();
-      if (!resolvedTenantSlug) {
-        setErrorMessage('Add your workspace subdomain to continue.');
+      if (!isTenantVerified || !verifiedTenantSlug) {
+        setErrorMessage('Verify your workspace subdomain to continue.');
         setIsSubmitting(false);
         return;
       }
@@ -74,8 +118,7 @@ const MarketingLoginModal: React.FC<MarketingLoginModalProps> = ({
           setIsSubmitting(false);
           return;
         }
-        onResolveTenantSlug?.(resolvedTenantSlug);
-        const success = await onEmployeeLogin(employeeId.trim(), employeePassword, resolvedTenantSlug);
+        const success = await onEmployeeLogin(employeeId.trim(), employeePassword, verifiedTenantSlug);
         if (!success) {
           setErrorMessage('Those credentials did not work. Please try again or reset with your HR team.');
           setIsSubmitting(false);
@@ -87,8 +130,7 @@ const MarketingLoginModal: React.FC<MarketingLoginModalProps> = ({
           setIsSubmitting(false);
           return;
         }
-        onResolveTenantSlug?.(resolvedTenantSlug);
-        const success = await onAdminLogin(adminEmail.trim(), adminPassword, resolvedTenantSlug);
+        const success = await onAdminLogin(adminEmail.trim(), adminPassword, verifiedTenantSlug);
         if (!success) {
           setErrorMessage('We could not log you in. Double-check your admin details or try reset.');
           setIsSubmitting(false);
@@ -187,24 +229,38 @@ const MarketingLoginModal: React.FC<MarketingLoginModalProps> = ({
                 id="tenant-slug"
                 value={tenantInput}
                 onChange={event => {
-                  if (!requiresTenantInput) {
-                    return;
-                  }
                   setTenantInput(event.target.value);
+                  setTenantStatus(null);
+                  setIsTenantVerified(false);
+                  setVerifiedTenantSlug(null);
                 }}
-                className={`mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none ${
-                  requiresTenantInput ? 'focus:border-white/40' : 'opacity-70'
-                }`}
+                className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:border-white/40 focus:outline-none"
                 placeholder="your-company"
                 autoComplete="off"
                 spellCheck={false}
-                disabled={!requiresTenantInput}
               />
-              <p className="mt-2 text-[11px] uppercase tracking-[0.3em] text-gray-500">
-                {requiresTenantInput
-                  ? 'Enter the first part of the URL you normally use'
-                  : `You are signing into ${tenantSlug}`}
-              </p>
+              <div className="mt-3 flex items-center gap-3">
+                <button
+                  onClick={handleVerifyTenant}
+                  className="rounded-full border border-white/20 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.25em] text-gray-200 transition hover:border-white hover:text-white"
+                  type="button"
+                >
+                  Verify
+                </button>
+                {tenantStatus && (
+                  <p
+                    className={`text-[11px] uppercase tracking-[0.3em] ${
+                      tenantStatus.tone === 'error'
+                        ? 'text-rose-300'
+                        : tenantStatus.tone === 'success'
+                          ? 'text-blue-100'
+                          : 'text-gray-500'
+                    }`}
+                  >
+                    {tenantStatus.message}
+                  </p>
+                )}
+              </div>
             </div>
 
             <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
@@ -279,12 +335,11 @@ const MarketingLoginModal: React.FC<MarketingLoginModalProps> = ({
             <div className="mt-6 text-xs text-gray-500">
               <button
                 onClick={() => {
-                  const resolvedTenantSlug = (requiresTenantInput ? tenantInput.trim() : tenantSlug.trim()).toLowerCase();
-                  if (!resolvedTenantSlug) {
-                    setErrorMessage('Add your workspace subdomain to continue.');
+                  if (!isTenantVerified || !verifiedTenantSlug) {
+                    setErrorMessage('Verify your workspace subdomain to continue.');
                     return;
                   }
-                  onResolveTenantSlug?.(resolvedTenantSlug);
+                  onResolveTenantSlug?.(verifiedTenantSlug);
                   onUseClassicLogin();
                 }}
                 className="underline transition hover:text-white"
