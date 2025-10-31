@@ -1092,6 +1092,12 @@ const App: React.FC = () => {
   const [loginView, setLoginView] = useState<'landing' | 'employee' | 'admin' | 'register'>('landing');
   const [pendingSlug, setPendingSlug] = useState<string>('');
 
+  React.useEffect(() => {
+    if (TENANT_SLUG && TENANT_SLUG !== 'default') {
+      setPendingSlug(TENANT_SLUG);
+    }
+  }, []);
+
 
   const renderContent = () => {
     if (!currentUser) {
@@ -1120,9 +1126,13 @@ const App: React.FC = () => {
                   />
                   <button
                     onClick={() => {
-                      const sanitized = sanitizeTenantSlug(pendingSlug);
+                      const sanitized = sanitizeTenantSlug(pendingSlug || TENANT_SLUG);
                       if (!sanitized) {
                         alert('Please enter a valid subdomain.');
+                        return;
+                      }
+                      if (sanitized === TENANT_SLUG) {
+                        setLoginView('employee');
                         return;
                       }
                       const rootDomainOverride = import.meta.env.VITE_ROOT_APP_DOMAIN;
