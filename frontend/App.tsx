@@ -46,7 +46,7 @@ const resolveTenantSlug = (): string => {
         if (withoutDomain) {
           const [subdomain] = withoutDomain.split('.');
           const subdomainSlug = sanitizeTenantSlug(subdomain);
-          if (subdomainSlug) {
+          if (subdomainSlug && subdomainSlug !== 'www') {
             return subdomainSlug;
           }
         }
@@ -55,7 +55,7 @@ const resolveTenantSlug = (): string => {
       if (host && host !== 'localhost' && host !== '127.0.0.1') {
         const [subdomain] = host.split('.');
         const hostSlug = sanitizeTenantSlug(subdomain);
-        if (hostSlug) {
+        if (hostSlug && hostSlug !== 'www') {
           return hostSlug;
         }
       }

@@ -158,21 +158,8 @@ const MarketingLoginModal: React.FC<MarketingLoginModalProps> = ({
         <div className="flex flex-col md:flex-row">
           <div className="hidden w-full bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 p-10 text-gray-200 md:block md:w-2/5">
             <h2 className="text-xl font-semibold text-white">Welcome back</h2>
-            <p className="mt-4 text-sm text-gray-400">
-              PAGO HR keeps payroll, UIF or Social Security, and tax payments aligned. Log in to continue where you left off.
-            </p>
-            <ul className="mt-8 space-y-3 text-sm text-gray-300">
-              <li>• Secure tenant-based access per company</li>
-              <li>• 2FA ready and audit logs baked in</li>
-              <li>• Switch between admin and employee views instantly</li>
-            </ul>
-            <button
-              onClick={onSignup}
-              className="mt-10 inline-flex items-center justify-center rounded-full border border-white/20 px-5 py-2 text-sm font-semibold text-white transition hover:border-white hover:bg-white/10"
-              type="button"
-            >
-              Need an account? Sign up
-            </button>
+            <p className="mt-4 text-sm text-gray-400">Log in to continue where you left off.</p>
+            <div className="mt-8" />
           </div>
 
           <div className="w-full p-6 sm:p-10 md:w-3/5">
@@ -332,22 +319,7 @@ const MarketingLoginModal: React.FC<MarketingLoginModalProps> = ({
               </button>
             </form>
 
-            <div className="mt-6 text-xs text-gray-500">
-              <button
-                onClick={() => {
-                  if (!isTenantVerified || !verifiedTenantSlug) {
-                    setErrorMessage('Verify your workspace subdomain to continue.');
-                    return;
-                  }
-                  onResolveTenantSlug?.(verifiedTenantSlug);
-                  onUseClassicLogin();
-                }}
-                className="underline transition hover:text-white"
-                type="button"
-              >
-                Prefer the classic login page?
-              </button>
-            </div>
+            <div className="mt-6" />
           </div>
         </div>
       </div>
