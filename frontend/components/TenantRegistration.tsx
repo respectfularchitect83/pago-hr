@@ -38,7 +38,7 @@ const TenantRegistration: React.FC<TenantRegistrationProps> = ({ onRegister, onS
   const [confirmPassword, setConfirmPassword] = useState('');
   const [adminFirstName, setAdminFirstName] = useState('');
   const [adminLastName, setAdminLastName] = useState('');
-  const [country, setCountry] = useState('South Africa');
+  const [country, setCountry] = useState<'South Africa' | 'Namibia'>('South Africa');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<TenantRegistrationResult | null>(null);
@@ -89,7 +89,7 @@ const TenantRegistration: React.FC<TenantRegistrationProps> = ({ onRegister, onS
         password,
         adminFirstName: adminFirstName.trim() || undefined,
         adminLastName: adminLastName.trim() || undefined,
-        country: country.trim() || undefined,
+  country,
       });
       setResult(registrationResult);
     } catch (err) {
@@ -231,13 +231,14 @@ const TenantRegistration: React.FC<TenantRegistrationProps> = ({ onRegister, onS
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
-            <input
-              type="text"
+            <select
               value={country}
-              onChange={(event) => setCountry(event.target.value)}
+              onChange={(event) => setCountry(event.target.value as 'South Africa' | 'Namibia')}
               className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-gray-500 focus:border-gray-500"
-              placeholder="e.g. South Africa"
-            />
+            >
+              <option value="South Africa">South Africa</option>
+              <option value="Namibia">Namibia</option>
+            </select>
           </div>
           {error && <p className="text-sm text-red-500">{error}</p>}
           <button

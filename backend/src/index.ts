@@ -24,22 +24,51 @@ config();
 const app = express();
 
 
-// CORS setup for deployed frontend (fixes preflight and uses env var)
-const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
-app.use(cors({
-  origin: allowedOrigin,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+const ROOT_APP_DOMAIN = (process.env.ROOT_APP_DOMAIN || 'pago-hr.com').toLowerCase();
+const STATIC_ALLOWED_ORIGINS = [
+  process.env.FRONTEND_URL,
+  process.env.FRONTEND_URL_2,
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:4173',
+  'http://127.0.0.1:4173',
+].filter((value): value is string => Boolean(value));
 
-// Explicitly handle preflight OPTIONS requests for all routes (Express 5 fix)
-app.options('/', cors({
-  origin: allowedOrigin,
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (STATIC_ALLOWED_ORIGINS.includes(origin)) {
+      return callback(null, true);
+    }
+
+    try {
+      const parsed = new URL(origin);
+      const hostname = parsed.hostname.toLowerCase();
+      if (
+        ROOT_APP_DOMAIN &&
+        (hostname === ROOT_APP_DOMAIN || hostname.endsWith(`.${ROOT_APP_DOMAIN}`))
+      ) {
+        return callback(null, true);
+      }
+    } catch (error) {
+      logger.warn('Failed to parse origin', { origin, error: error instanceof Error ? error.message : error });
+    }
+
+    logger.warn('Blocked CORS origin', { origin });
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Company-Slug'],
+};
+
+app.use(cors(corsOptions));
+
+// Explicitly handle preflight OPTIONS requests for any route (Express 5 fix)
+app.options('*', cors(corsOptions));
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
