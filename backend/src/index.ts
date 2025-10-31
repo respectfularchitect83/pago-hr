@@ -63,12 +63,12 @@ const corsOptions: cors.CorsOptions = {
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Company-Slug'],
+  optionsSuccessStatus: 204,
 };
 
 app.use(cors(corsOptions));
-
-// Explicitly handle preflight OPTIONS requests for any route (Express 5 fix)
-app.options('*', cors(corsOptions));
+// Explicitly handle preflight OPTIONS requests for Express 5 compatible routing
+app.options('/:path*', cors(corsOptions));
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
