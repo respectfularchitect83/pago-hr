@@ -292,7 +292,7 @@ const PayslipDetail: React.FC<PayslipDetailProps> = ({ payslip, employee, compan
           <img
             src={companyInfo.logoUrl}
             alt={`${companyInfo.name} logo`}
-            className="mx-auto h-16 max-w-[220px] object-contain"
+            className="mx-auto max-h-16 w-auto max-w-[220px] object-contain"
           />
         )}
         <h1 className="mt-3 text-2xl font-semibold uppercase tracking-wide text-gray-900">{companyInfo.name || 'Company'}</h1>
