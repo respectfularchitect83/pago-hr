@@ -1,17 +1,32 @@
-import React, { useMemo } from 'react';
-import { Employee } from '../../../types';
+import React, { useMemo, useState } from 'react';
+import { Company, Employee, Payslip } from '../../../types';
 import { convertToCSV, downloadCSV } from '../../../utils/csvHelper';
 import DownloadIcon from '../../icons/DownloadIcon';
 import DocumentTextIcon from '../../icons/DocumentTextIcon';
 import { downloadTableAsPdf } from '../../../utils/reportExport';
+import PayslipDetail from '../../PayslipDetail';
 
 interface Props {
   employees: Employee[];
+  companyInfo: Company;
   startDate: string;
   endDate: string;
   selectedBranch: string;
   selectedEmployeeId: string;
 }
+
+type PayslipTableRow = {
+  employee: Employee;
+  payslip: Payslip;
+  employeeId: string;
+  employeeName: string;
+  branch: string;
+  payDate: string;
+  periodStart: string;
+  periodEnd: string;
+  status: string;
+  netPay: number;
+};
 
 const sanitizeForFileName = (value: string) =>
   value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'all';
@@ -19,7 +34,9 @@ const sanitizeForFileName = (value: string) =>
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 
-const PayslipDownloadReport: React.FC<Props> = ({ employees, startDate, endDate, selectedBranch, selectedEmployeeId }) => {
+const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startDate, endDate, selectedBranch, selectedEmployeeId }) => {
+  const [selectedPayslip, setSelectedPayslip] = useState<{ employee: Employee; payslip: Payslip } | null>(null);
+
   const { scopedEmployees, payslipRows } = useMemo(() => {
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -28,8 +45,9 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, startDate, endDate,
 
     const scoped = employees.filter(emp => matchesBranch(emp) && matchesEmployee(emp));
 
-    const rows = scoped.flatMap(emp => {
-      return emp.payslips
+    const rows: PayslipTableRow[] = scoped.flatMap(emp => {
+      const employeePayslips = Array.isArray(emp.payslips) ? emp.payslips : [];
+      return employeePayslips
         .filter(p => {
           const payDate = new Date(p.payDate);
           return payDate >= start && payDate <= end;
@@ -38,7 +56,10 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, startDate, endDate,
           const totalEarnings = p.earnings.reduce((sum, item) => sum + item.amount, 0);
           const totalDeductions = p.deductions.reduce((sum, item) => sum + item.amount, 0);
           const netPay = p.netSalary ?? totalEarnings - totalDeductions;
+
           return {
+            employee: emp,
+            payslip: p,
             employeeId: emp.employeeId,
             employeeName: emp.name,
             branch: emp.branch || 'N/A',
@@ -62,6 +83,12 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, startDate, endDate,
     : selectedBranch !== 'all' ? `${selectedBranch} Branch` : 'All Employees';
 
   const fileScope = sanitizeForFileName(scopeLabel);
+
+  const closeModal = () => setSelectedPayslip(null);
+
+  const handleViewPayslip = (row: PayslipTableRow) => {
+    setSelectedPayslip({ employee: row.employee, payslip: row.payslip });
+  };
 
   const handleDownloadCsv = () => {
     if (payslipRows.length === 0) {
@@ -92,7 +119,13 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, startDate, endDate,
       title: 'Payslip Download',
       subtitle: `${scopeLabel} · ${startDate} to ${endDate}`,
       rows: payslipRows.map(row => ({
-        ...row,
+        employeeName: row.employeeName,
+        employeeId: row.employeeId,
+        branch: row.branch,
+        payDate: row.payDate,
+        periodStart: row.periodStart,
+        periodEnd: row.periodEnd,
+        status: row.status,
         netPay: formatCurrency(row.netPay),
       })),
       columns: [
@@ -160,6 +193,7 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, startDate, endDate,
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Pay</th>
+              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -172,16 +206,51 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, startDate, endDate,
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.periodStart} - {row.periodEnd}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">{row.status}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">{formatCurrency(row.netPay)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                    <button
+                      onClick={() => handleViewPayslip(row)}
+                      className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200"
+                    >
+                      View Payslip
+                    </button>
+                  </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={6} className="text-center py-8 text-gray-500">No payslips found for the selected filters.</td>
+                <td colSpan={7} className="text-center py-8 text-gray-500">No payslips found for the selected filters.</td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {selectedPayslip && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b border-gray-200 px-6 py-4">
+              <div>
+                <h4 className="text-lg font-semibold text-gray-800">Payslip Preview</h4>
+                <p className="text-sm text-gray-500">{selectedPayslip.employee.name} · {selectedPayslip.payslip.payDate}</p>
+              </div>
+              <button
+                onClick={closeModal}
+                className="rounded-full p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                aria-label="Close payslip preview"
+              >
+                X
+              </button>
+            </div>
+            <div className="max-h-[75vh] overflow-y-auto px-4 py-6 sm:px-6">
+              <PayslipDetail
+                payslip={selectedPayslip.payslip}
+                employee={selectedPayslip.employee}
+                companyInfo={companyInfo}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

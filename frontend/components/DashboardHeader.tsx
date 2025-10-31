@@ -31,8 +31,19 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ view, employee, compa
         if (!companyInfo?.leaveSettings) {
             return [] as string[];
         }
-        return Object.keys(companyInfo.leaveSettings).filter(type => type !== 'Unpaid');
-    }, [companyInfo]);
+        return Object.keys(companyInfo.leaveSettings).filter(type => {
+            if (type === 'Unpaid') {
+                return false;
+            }
+            if (type === 'Maternity' && employee.gender !== 'Female') {
+                return false;
+            }
+            if (type === 'Paternity' && employee.gender !== 'Male') {
+                return false;
+            }
+            return true;
+        });
+    }, [companyInfo, employee.gender]);
     
     const getHeaderText = () => {
         switch(view) {

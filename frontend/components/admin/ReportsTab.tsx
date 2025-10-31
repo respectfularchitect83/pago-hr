@@ -87,7 +87,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ employees, companyInfo }) => {
 
         switch(activeReport) {
             case 'payslip-download':
-                return <PayslipDownloadReport {...baseProps} />;
+                return <PayslipDownloadReport {...baseProps} companyInfo={companyInfo} />;
             case 'pay-sheet':
                 return <PaySheetReport {...baseProps} />;
             case 'tax':
