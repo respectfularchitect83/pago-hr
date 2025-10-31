@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Company, Employee, Payslip } from '../../../types';
 import { convertToCSV, downloadCSV } from '../../../utils/csvHelper';
 import DownloadIcon from '../../icons/DownloadIcon';
@@ -25,6 +25,7 @@ type PayslipTableRow = {
   periodStart: string;
   periodEnd: string;
   netPay: number;
+  rowId: string;
 };
 
 const sanitizeForFileName = (value: string) =>
@@ -56,6 +57,8 @@ const formatDateOnly = (value: string) => {
 
 const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startDate, endDate, selectedBranch, selectedEmployeeId }) => {
   const [selectedPayslip, setSelectedPayslip] = useState<SelectedPayslipState | null>(null);
+  const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({});
+  const headerCheckboxRef = useRef<HTMLInputElement>(null);
 
   const { scopedEmployees, payslipRows } = useMemo(() => {
     const start = new Date(startDate);
@@ -87,6 +90,7 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
             periodStart: formatDateOnly(p.payPeriodStart),
             periodEnd: formatDateOnly(p.payPeriodEnd),
             netPay: Number(netPay.toFixed(2)),
+            rowId: p.id ?? `${emp.id}-${p.payDate}-${p.payPeriodStart}`,
           };
         });
     });
@@ -96,6 +100,30 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
       payslipRows: rows.sort((a, b) => new Date(a.payDate).getTime() - new Date(b.payDate).getTime()),
     };
   }, [employees, startDate, endDate, selectedBranch, selectedEmployeeId]);
+
+  useEffect(() => {
+    setSelectedRowIds(prev => {
+      if (!prev || Object.keys(prev).length === 0) {
+        return {};
+      }
+      const next: Record<string, boolean> = {};
+      payslipRows.forEach(row => {
+        if (prev[row.rowId]) {
+          next[row.rowId] = true;
+        }
+      });
+      return next;
+    });
+  }, [payslipRows]);
+
+  useEffect(() => {
+    if (!headerCheckboxRef.current) {
+      return;
+    }
+    const total = payslipRows.length;
+    const selected = payslipRows.filter(row => selectedRowIds[row.rowId]).length;
+    headerCheckboxRef.current.indeterminate = selected > 0 && selected < total;
+  }, [payslipRows, selectedRowIds]);
 
   const scopeLabel = selectedEmployeeId !== 'all'
     ? scopedEmployees[0]?.name || 'Selected Employee'
@@ -113,13 +141,52 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
     setSelectedPayslip({ employee: row.employee, payslip: row.payslip, mode: 'download' });
   };
 
-  const handleDownloadCsv = () => {
+  const toggleSelectAll = () => {
     if (payslipRows.length === 0) {
+      return;
+    }
+    const allSelected = payslipRows.every(row => selectedRowIds[row.rowId]);
+    if (allSelected) {
+      setSelectedRowIds({});
+    } else {
+      const next: Record<string, boolean> = {};
+      payslipRows.forEach(row => {
+        next[row.rowId] = true;
+      });
+      setSelectedRowIds(next);
+    }
+  };
+
+  const toggleRowSelection = (rowId: string) => {
+    setSelectedRowIds(prev => {
+      const next = { ...prev };
+      if (next[rowId]) {
+        delete next[rowId];
+      } else {
+        next[rowId] = true;
+      }
+      return next;
+    });
+  };
+
+  const selectedRows = useMemo(() => {
+    const entries = payslipRows.filter(row => selectedRowIds[row.rowId]);
+    return entries;
+  }, [payslipRows, selectedRowIds]);
+
+  const rowsForExport = useMemo(() => (
+    selectedRows.length > 0 ? selectedRows : payslipRows
+  ), [selectedRows, payslipRows]);
+
+  const selectedCount = selectedRows.length;
+
+  const handleDownloadCsv = () => {
+    if (rowsForExport.length === 0) {
       alert('No payslips available to download for the current filters.');
       return;
     }
     const csv = convertToCSV(
-      payslipRows.map(row => ({
+  rowsForExport.map(row => ({
         employeeId: row.employeeId,
         employeeName: row.employeeName,
         branch: row.branch,
@@ -133,14 +200,14 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
   };
 
   const handleDownloadPdf = () => {
-    if (payslipRows.length === 0) {
+    if (rowsForExport.length === 0) {
       alert('No payslips available to download for the current filters.');
       return;
     }
     downloadTableAsPdf({
       title: 'Payslip Download',
       subtitle: `${scopeLabel} · ${startDate} to ${endDate}`,
-      rows: payslipRows.map(row => ({
+  rows: rowsForExport.map(row => ({
         employeeName: row.employeeName,
         employeeId: row.employeeId,
         branch: row.branch,
@@ -188,7 +255,7 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div className="p-4 bg-white border rounded-lg">
           <p className="text-xs uppercase text-gray-500">Payslips Found</p>
           <p className="mt-1 text-2xl font-semibold text-gray-800">{payslipRows.length}</p>
@@ -201,12 +268,26 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
           <p className="text-xs uppercase text-gray-500">Period</p>
           <p className="mt-1 text-sm text-gray-700">{startDate} → {endDate}</p>
         </div>
+        <div className="p-4 bg-white border rounded-lg">
+          <p className="text-xs uppercase text-gray-500">Selected</p>
+          <p className="mt-1 text-2xl font-semibold text-gray-800">{selectedCount > 0 ? selectedCount : (payslipRows.length === 0 ? 0 : 'All')}</p>
+        </div>
       </div>
 
       <div className="overflow-x-auto border rounded-lg">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <input
+                  ref={headerCheckboxRef}
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300 text-gray-600 focus:ring-gray-500"
+                  onChange={toggleSelectAll}
+                  checked={payslipRows.length > 0 && payslipRows.every(row => selectedRowIds[row.rowId])}
+                  aria-label="Select all payslips"
+                />
+              </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
@@ -217,7 +298,16 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
           <tbody className="bg-white divide-y divide-gray-200">
             {payslipRows.length > 0 ? (
               payslipRows.map((row, index) => (
-                <tr key={`${row.employeeId}-${row.payDate}-${index}`}>
+                <tr key={row.rowId} className={selectedRowIds[row.rowId] ? 'bg-gray-50' : undefined}>
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-gray-300 text-gray-600 focus:ring-gray-500"
+                      checked={!!selectedRowIds[row.rowId]}
+                      onChange={() => toggleRowSelection(row.rowId)}
+                      aria-label={`Select payslip for ${row.employeeName}`}
+                    />
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{row.employeeName} ({row.employeeId})</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.branch}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.periodStart} - {row.periodEnd}</td>
@@ -245,7 +335,7 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
               ))
             ) : (
               <tr>
-                <td colSpan={5} className="text-center py-8 text-gray-500">No payslips found for the selected filters.</td>
+                <td colSpan={6} className="text-center py-8 text-gray-500">No payslips found for the selected filters.</td>
               </tr>
             )}
           </tbody>
