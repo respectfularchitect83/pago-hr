@@ -5,27 +5,6 @@ interface MarketingLandingProps {
   onRequestLogin: () => void;
 }
 
-const statHighlights = [
-  { label: 'Payrolls processed', value: '120k+' },
-  { label: 'Countries supported', value: 'South Africa 🇿🇦 • Namibia 🇳🇦' },
-  { label: 'Average setup time', value: '8 minutes' },
-];
-
-const featureList = [
-  {
-    title: 'Payroll that runs itself',
-    description: 'Automate payslips, PAYE, UIF, and Social Security submissions with smart defaults tuned for Southern Africa.',
-  },
-  {
-    title: 'Household staff friendly',
-    description: 'Track leave, contracts, and compliance for nannies, caregivers, and gardeners without spreadsheets.',
-  },
-  {
-    title: 'HR in your pocket',
-    description: 'Simple dashboards keep employee records, documents, and conversations tidy and auditable.',
-  },
-];
-
 const tierCards = [
   {
     name: 'Starter',
@@ -79,15 +58,6 @@ const MarketingLanding: React.FC<MarketingLandingProps> = ({
             <span className="text-lg font-semibold tracking-wide text-[#f8f6e8]">PAGO HR</span>
           </div>
           <nav className="hidden items-center gap-7 text-sm font-medium text-[#d3d7bd] md:flex">
-            <button onClick={() => setShowCompliance(true)} className="transition hover:text-[#f8f6e8]" type="button">
-              Compliance
-            </button>
-            <button onClick={onRequestSignup} className="transition hover:text-[#f8f6e8]" type="button">
-              Pricing
-            </button>
-            <button onClick={() => setShowContact(true)} className="transition hover:text-[#f8f6e8]" type="button">
-              Contact
-            </button>
             <button onClick={onRequestLogin} className="rounded-full border border-[#dfe2ce]/25 px-4 py-1.5 text-[#f4f1e5] transition hover:border-[#f4f1e5]" type="button">
               Login
             </button>
@@ -121,52 +91,9 @@ const MarketingLanding: React.FC<MarketingLandingProps> = ({
                 Payroll and HR that feel as polished as your business.
               </h1>
               <div className="mt-10" />
-              <div className="mt-10 grid grid-cols-3 gap-6 text-sm text-[#d0d4bc]">
-                {statHighlights.map(highlight => (
-                  <div key={highlight.label} className="rounded-2xl border border-[#dfe2ce]/20 bg-[#f8f6e8]/10 p-4">
-                    <p className="text-xl font-semibold text-[#f8f6e8]">{highlight.value}</p>
-                    <p className="mt-1 text-xs uppercase tracking-wide text-[#b8bd9d]">{highlight.label}</p>
-                  </div>
-                ))}
-              </div>
             </div>
 
             <div className="hidden w-full md:block md:w-1/2" />
-          </div>
-        </section>
-
-        <section className="mx-auto max-w-6xl px-6 pb-24">
-          <div className="grid gap-8 md:grid-cols-3">
-            {featureList.map(feature => (
-              <div key={feature.title} className="rounded-3xl border border-[#c7cbaa]/20 bg-[#2f321d]/70 p-8">
-                <h3 className="text-xl font-semibold text-[#f8f6e8]">{feature.title}</h3>
-                <p className="mt-3 text-sm text-[#bdc2a2]">{feature.description}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="mx-auto max-w-6xl px-6 pb-24">
-          <div className="rounded-[32px] border border-[#b9bea1]/25 bg-gradient-to-br from-[#2f321f] via-[#2a2d1c] to-[#242716] p-10">
-            <h2 className="text-3xl font-semibold text-[#f8f6e8] sm:text-4xl">Designed for teams and households that need compliance without the headache.</h2>
-            <div className="mt-8 grid gap-6 md:grid-cols-2">
-              <div className="space-y-4 text-sm text-[#d0d4bc]">
-                <p>• Automated PAYE, UIF, and SSC submissions with exports tailored for SARS and NAMRA.</p>
-                <p>• Leave intelligence that honours South African and Namibian public holidays by default.</p>
-                <p>• Tenant branding so every payslip, login screen, and email stays on-brand for your clients.</p>
-              </div>
-              <div className="rounded-3xl border border-[#dfe2ce]/20 bg-[#f8f6e8]/10 p-6 text-sm text-[#d0d4bc] shadow-inner">
-                <p className="font-semibold text-[#f8f6e8]">Need a compliance checklist?</p>
-                <p className="mt-2">Download our household and SME starter pack with contracts, onboarding steps, and monthly reminders.</p>
-                <button
-                  onClick={() => setShowCompliance(true)}
-                  className="mt-4 inline-flex items-center justify-center rounded-full border border-[#dfe2ce]/25 px-5 py-2 text-sm font-semibold text-[#f4f1e5] transition hover:border-[#f8f6e8] hover:bg-[#f8f6e8]/10"
-                  type="button"
-                >
-                  View the checklist
-                </button>
-              </div>
-            </div>
           </div>
         </section>
 
