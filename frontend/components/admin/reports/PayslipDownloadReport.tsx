@@ -40,6 +40,21 @@ type SelectedPayslipState = {
   mode: 'view' | 'download';
 };
 
+const formatDateOnly = (value: string) => {
+  if (!value) {
+    return '';
+  }
+  try {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+    return date.toISOString().split('T')[0];
+  } catch (error) {
+    return value;
+  }
+};
+
 const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startDate, endDate, selectedBranch, selectedEmployeeId }) => {
   const [selectedPayslip, setSelectedPayslip] = useState<SelectedPayslipState | null>(null);
 
@@ -69,9 +84,9 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
             employeeId: emp.employeeId,
             employeeName: emp.name,
             branch: emp.branch || 'N/A',
-            payDate: p.payDate,
-            periodStart: p.payPeriodStart,
-            periodEnd: p.payPeriodEnd,
+            payDate: formatDateOnly(p.payDate),
+            periodStart: formatDateOnly(p.payPeriodStart),
+            periodEnd: formatDateOnly(p.payPeriodEnd),
             status: p.status ?? 'draft',
             netPay: Number(netPay.toFixed(2)),
           };
@@ -199,7 +214,6 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pay Date</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Pay</th>
@@ -212,7 +226,6 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
                 <tr key={`${row.employeeId}-${row.payDate}-${index}`}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{row.employeeName} ({row.employeeId})</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.branch}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.payDate}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.periodStart} - {row.periodEnd}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">{row.status}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">{formatCurrency(row.netPay)}</td>
@@ -239,7 +252,7 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
               ))
             ) : (
               <tr>
-                <td colSpan={7} className="text-center py-8 text-gray-500">No payslips found for the selected filters.</td>
+                <td colSpan={6} className="text-center py-8 text-gray-500">No payslips found for the selected filters.</td>
               </tr>
             )}
           </tbody>
