@@ -4,9 +4,10 @@ import LockIcon from '../icons/LockIcon';
 interface AdminLoginScreenProps {
   onLoginAttempt: (email: string, password: string) => Promise<boolean>;
   onSwitchToEmployeeLogin: () => void;
+  onOpenCompanyRegistration: () => void;
 }
 
-const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({ onLoginAttempt, onSwitchToEmployeeLogin }) => {
+const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({ onLoginAttempt, onSwitchToEmployeeLogin, onOpenCompanyRegistration }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -57,6 +58,11 @@ const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({ onLoginAttempt, onS
          <div className="pt-4">
             <button onClick={onSwitchToEmployeeLogin} className="text-xs text-gray-500 hover:text-gray-800">Employee Login</button>
         </div>
+          <div className="pt-2">
+            <button onClick={onOpenCompanyRegistration} className="text-xs text-gray-500 hover:text-gray-800">
+              Need an account? Register your company
+            </button>
+          </div>
       </div>
     </div>
   );

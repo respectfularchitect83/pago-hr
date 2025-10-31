@@ -4,9 +4,10 @@ import IdentificationIcon from './icons/IdentificationIcon';
 interface LoginScreenProps {
   onLoginAttempt: (employeeId: string, password: string) => Promise<boolean>;
   onSwitchToAdminLogin: () => void;
+  onOpenCompanyRegistration: () => void;
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginAttempt, onSwitchToAdminLogin }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginAttempt, onSwitchToAdminLogin, onOpenCompanyRegistration }) => {
   const [employeeId, setEmployeeId] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [error, setError] = useState<string>('');
@@ -69,6 +70,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginAttempt, onSwitchToAdm
     </form>
         <div className="pt-4">
             <button onClick={onSwitchToAdminLogin} className="text-xs text-gray-500 hover:text-gray-800">Admin Login</button>
+        </div>
+        <div className="pt-2">
+          <button onClick={onOpenCompanyRegistration} className="text-xs text-gray-500 hover:text-gray-800">
+            Company admin? Register your organisation
+          </button>
         </div>
       </div>
     </div>

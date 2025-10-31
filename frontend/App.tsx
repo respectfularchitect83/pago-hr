@@ -82,6 +82,21 @@ import LoginScreen from './components/LoginScreen';
 import PayslipDashboard from './components/PayslipDashboard';
 import AdminLoginScreen from './components/admin/AdminLoginScreen';
 import AdminDashboard from './components/admin/AdminDashboard';
+import TenantRegistration from './components/TenantRegistration';
+type TenantRegistrationPayload = {
+  companyName: string;
+  slug?: string;
+  adminEmail: string;
+  password: string;
+  adminFirstName?: string;
+  adminLastName?: string;
+  country?: string;
+};
+
+type TenantRegistrationResult = {
+  companySlug: string;
+  adminEmail: string;
+};
 
 const DEFAULT_PHOTO_URL = 'https://i.pravatar.cc/150';
 
@@ -1041,16 +1056,56 @@ const App: React.FC = () => {
     }
   }, [authToken]);
   
+  const handleTenantRegistration = useCallback(async (payload: TenantRegistrationPayload): Promise<TenantRegistrationResult> => {
+    const sanitizedSlug = payload.slug ? sanitizeTenantSlug(payload.slug) : sanitizeTenantSlug(payload.companyName);
+    const slugForRequest = sanitizedSlug || undefined;
+    const response = await fetch(`${API_URL}/api/tenants/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        companyName: payload.companyName,
+        slug: slugForRequest,
+        adminEmail: payload.adminEmail,
+        password: payload.password,
+        adminFirstName: payload.adminFirstName,
+        adminLastName: payload.adminLastName,
+        country: payload.country,
+      }),
+    });
+
+    if (!response.ok) {
+      const message = await extractErrorMessage(response);
+      throw new Error(message || 'Failed to register company');
+    }
+
+    const data = await response.json();
+    const slugFromResponse = data?.company?.slug ? String(data.company.slug) : slugForRequest ?? sanitizedSlug;
+    const adminEmail = data?.admin?.email ? String(data.admin.email) : payload.adminEmail;
+
+    return {
+      companySlug: slugFromResponse,
+      adminEmail,
+    };
+  }, []);
+  
   // A bit of a hack to switch between login screens without a router
-  const [loginView, setLoginView] = useState<'employee' | 'admin'>('employee');
+  const [loginView, setLoginView] = useState<'employee' | 'admin' | 'register'>('employee');
 
 
   const renderContent = () => {
     if (!currentUser) {
-        if (loginView === 'admin') {
-            return <AdminLoginScreen onLoginAttempt={handleAdminLoginSuccess} onSwitchToEmployeeLogin={() => setLoginView('employee')} />;
+        if (loginView === 'register') {
+          return (
+            <TenantRegistration
+              onRegister={handleTenantRegistration}
+              onSwitchToLogin={() => setLoginView('admin')}
+            />
+          );
         }
-        return <LoginScreen onLoginAttempt={handleLoginSuccess} onSwitchToAdminLogin={() => setLoginView('admin')} />;
+        if (loginView === 'admin') {
+            return <AdminLoginScreen onLoginAttempt={handleAdminLoginSuccess} onSwitchToEmployeeLogin={() => setLoginView('employee')} onOpenCompanyRegistration={() => setLoginView('register')} />;
+        }
+        return <LoginScreen onLoginAttempt={handleLoginSuccess} onSwitchToAdminLogin={() => setLoginView('admin')} onOpenCompanyRegistration={() => setLoginView('register')} />;
     }
 
     if (currentUser && 'username' in currentUser) {
