@@ -88,13 +88,12 @@ const MarketingLanding: React.FC<MarketingLandingProps> = ({
                     <li key={bullet}>• {bullet}</li>
                   ))}
                 </ul>
-                <button
-                  onClick={onRequestSignup}
+                <a
+                  href="mailto:martinbosman@me.com"
                   className="mt-8 inline-flex items-center justify-center rounded-full border border-[#dfe2ce]/25 px-5 py-2 text-sm font-semibold text-[#f4f1e5] transition hover:border-[#f8f6e8] hover:bg-[#f8f6e8]/10"
-                  type="button"
                 >
                   Talk to sales
-                </button>
+                </a>
               </div>
             ))}
           </div>
