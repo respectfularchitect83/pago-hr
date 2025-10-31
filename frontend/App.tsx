@@ -1132,7 +1132,7 @@ const App: React.FC = () => {
                         return;
                       }
                       if (sanitized === TENANT_SLUG) {
-                        setLoginView('employee');
+                        setLoginView('admin');
                         return;
                       }
                       const rootDomainOverride = import.meta.env.VITE_ROOT_APP_DOMAIN;
