@@ -26,20 +26,6 @@ const tierCards = [
   },
 ];
 
-const testimonialList = [
-  {
-    quote:
-  'We moved from manual spreadsheets to PAGO HR in a weekend. Payroll, leave, and UIF submissions are finally in one place.',
-    name: 'Chantelle M.',
-    role: 'Operations, Coastal Care Homes',
-  },
-  {
-  quote: 'Household payroll felt overwhelming. PAGO HR keeps our domestic team paid and compliant without any jargon.',
-    name: 'David & Naledi',
-    role: 'Household employers, Johannesburg',
-  },
-];
-
 const MarketingLanding: React.FC<MarketingLandingProps> = ({
   onRequestSignup,
   onRequestLogin,
@@ -60,13 +46,6 @@ const MarketingLanding: React.FC<MarketingLandingProps> = ({
           <nav className="hidden items-center gap-7 text-sm font-medium text-[#d3d7bd] md:flex">
             <button onClick={onRequestLogin} className="rounded-full border border-[#dfe2ce]/25 px-4 py-1.5 text-[#f4f1e5] transition hover:border-[#f4f1e5]" type="button">
               Login
-            </button>
-            <button
-              onClick={onRequestSignup}
-              className="rounded-full bg-[#e9ecd6] px-5 py-1.5 text-sm font-semibold text-[#2f321d] shadow shadow-[#191b0d]/30 transition hover:bg-[#f4f6e3]"
-              type="button"
-            >
-              Sign up free
             </button>
           </nav>
           <button
@@ -121,45 +100,7 @@ const MarketingLanding: React.FC<MarketingLandingProps> = ({
           </div>
         </section>
 
-        <section className="mx-auto max-w-5xl px-6 pb-24 text-center">
-          <h2 className="text-3xl font-semibold text-[#f8f6e8] sm:text-4xl">Loved by finance teams and household employers alike.</h2>
-          <div className="mt-10 grid gap-6 md:grid-cols-2">
-            {testimonialList.map(testimonial => (
-              <figure key={testimonial.quote} className="rounded-3xl border border-[#c7cbaa]/20 bg-[#2f321d]/70 p-8 text-left">
-                <blockquote className="text-sm text-[#d0d4bc]">“{testimonial.quote}”</blockquote>
-                <figcaption className="mt-6 text-sm font-medium text-[#f8f6e8]">
-                  {testimonial.name}
-                  <span className="block text-xs font-normal text-[#adb293]">{testimonial.role}</span>
-                </figcaption>
-              </figure>
-            ))}
-          </div>
-        </section>
-
-        <section className="mx-auto max-w-6xl px-6 pb-32">
-          <div className="rounded-[32px] border border-[#c7cbaa]/20 bg-gradient-to-br from-[#5e6541]/25 via-[#42482b]/35 to-[#2f321f]/85 p-10 text-center">
-            <h2 className="text-3xl font-semibold text-[#f8f6e8] sm:text-4xl">Keep your people cared for and compliant.</h2>
-            <p className="mt-4 text-sm text-[#d9ddc0] sm:text-base">
-              PAGO HR brings payroll, HR, and compliance into one elegant workspace. Spin up a branded tenant and invite your team in minutes.
-            </p>
-            <div className="mt-8 flex flex-wrap justify-center gap-4">
-              <button
-                onClick={onRequestSignup}
-                className="rounded-full bg-[#ecefd9] px-6 py-3 text-sm font-semibold text-[#2f321d] shadow-lg transition hover:bg-[#f6f8e6]"
-                type="button"
-              >
-                Create my tenant
-              </button>
-              <button
-                onClick={() => setShowContact(true)}
-                className="rounded-full border border-[#dfe2ce]/25 px-6 py-3 text-sm font-semibold text-[#f4f1e5] transition hover:border-[#f8f6e8] hover:bg-[#f8f6e8]/10"
-                type="button"
-              >
-                Chat to an expert
-              </button>
-            </div>
-          </div>
-        </section>
+        <section className="mx-auto max-w-6xl px-6 pb-32" />
       </main>
 
       <footer className="border-t border-[#b9bea1]/20 bg-[#363925]/90">
