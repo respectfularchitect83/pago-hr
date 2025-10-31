@@ -80,9 +80,9 @@ const HRUsersTab: React.FC<HRUsersTabProps> = ({ users, onAddUser, onUpdateUser,
             if (!localPart) {
                 return ['HR', 'User'];
             }
-            const cleaned = localPart.replace(/[^a-zA-Z\.\-\s_]/g, ' ');
+            const cleaned = localPart.replace(/[^a-zA-Z._\s-]/g, ' ');
             const segments = cleaned
-                .split(/[\.\-\s_]+/)
+                .split(/[.\s_-]+/)
                 .filter(Boolean)
                 .map(segment => segment.charAt(0).toUpperCase() + segment.slice(1));
             if (segments.length === 0) {

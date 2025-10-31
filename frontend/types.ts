@@ -91,6 +91,34 @@ export interface Company {
     leaveSettings: { [key in LeaveType]?: number };
 }
 
+export interface PublicHoliday {
+  date: string;
+  name: string;
+  observedDate?: string;
+  notes?: string;
+}
+
+export interface HolidayCalendar {
+  year: number;
+  holidays: PublicHoliday[];
+}
+
+export interface HolidayInstance {
+  date: string;
+  name: string;
+  isObserved: boolean;
+  originalDate: string;
+  notes?: string;
+}
+
+export interface LeaveDurationBreakdown {
+  workingDays: number;
+  leaveHours: number;
+  leaveDays: number;
+  holidayCount: number;
+  holidayMatches: string[];
+}
+
 // For HR user management
 export interface HRUser {
     id: string;

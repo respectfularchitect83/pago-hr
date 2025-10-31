@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Employee, Company, LeaveRecord, LeaveType } from '../../types';
-import { calculateLeaveBalances, calculateWorkingDays } from '../../utils/leaveCalculations';
+import { Employee, Company, LeaveRecord, LeaveType, LeaveDurationBreakdown } from '../../types';
+import { calculateLeaveBalances, calculateLeaveDuration } from '../../utils/leaveCalculations';
 import SearchIcon from '../icons/SearchIcon';
 import PlusIcon from '../icons/PlusIcon';
 import TrashIcon from '../icons/TrashIcon';
@@ -24,15 +24,7 @@ const LeaveTab: React.FC<LeaveTabProps> = ({ employees, companyInfo, onUpdateEmp
         days: 0,
         note: '',
     });
-    
-    useEffect(() => {
-        if (newLeave.startDate && newLeave.endDate) {
-            const days = calculateWorkingDays(newLeave.startDate, newLeave.endDate);
-            setNewLeave(prev => ({...prev, days}));
-        } else {
-            setNewLeave(prev => ({...prev, days: 0}));
-        }
-    }, [newLeave.startDate, newLeave.endDate]);
+    const [leavePreview, setLeavePreview] = useState<LeaveDurationBreakdown | null>(null);
 
     const filteredEmployees = useMemo(() => {
         return employees.filter(emp =>
@@ -46,6 +38,30 @@ const LeaveTab: React.FC<LeaveTabProps> = ({ employees, companyInfo, onUpdateEmp
         if (!selectedEmployeeId) return null;
         return employees.find(emp => emp.id === selectedEmployeeId) || null;
     }, [employees, selectedEmployeeId]);
+
+    useEffect(() => {
+        if (newLeave.startDate && newLeave.endDate) {
+            const summary = calculateLeaveDuration(newLeave.startDate, newLeave.endDate, {
+                employee: selectedEmployee || undefined,
+                company: companyInfo
+            });
+            setLeavePreview(summary);
+            setNewLeave(prev => {
+                if (prev.days === summary.leaveDays) {
+                    return prev;
+                }
+                return { ...prev, days: summary.leaveDays };
+            });
+        } else {
+            setLeavePreview(null);
+            setNewLeave(prev => {
+                if (prev.days === 0) {
+                    return prev;
+                }
+                return { ...prev, days: 0 };
+            });
+        }
+    }, [newLeave.startDate, newLeave.endDate, selectedEmployee, companyInfo]);
     
     const availableLeaveTypes = useMemo(() => {
         if (!selectedEmployee) return ALL_LEAVE_TYPES;
@@ -65,7 +81,7 @@ const LeaveTab: React.FC<LeaveTabProps> = ({ employees, companyInfo, onUpdateEmp
     
     const handleAddLeave = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedEmployee || newLeave.days <= 0) {
+        if (!selectedEmployee || !leavePreview || leavePreview.leaveDays <= 0) {
             alert("Please select an employee and ensure the leave duration is valid.");
             return;
         }
@@ -75,7 +91,7 @@ const LeaveTab: React.FC<LeaveTabProps> = ({ employees, companyInfo, onUpdateEmp
             type: newLeave.type,
             startDate: newLeave.startDate,
             endDate: newLeave.endDate,
-            days: newLeave.days,
+            days: leavePreview.leaveDays,
             note: newLeave.note?.trim() ? newLeave.note.trim() : undefined,
         };
         
@@ -177,9 +193,24 @@ const LeaveTab: React.FC<LeaveTabProps> = ({ employees, companyInfo, onUpdateEmp
                                     <input type="date" value={newLeave.endDate} onChange={e => setNewLeave({...newLeave, endDate: e.target.value})} className="w-full mt-1 p-2 border rounded-md" required />
                                 </div>
                             </div>
-                            <div className="text-center font-medium text-gray-600">
-                                Calculated Working Days: <span className="font-bold text-gray-800">{newLeave.days}</span>
+                            <div className="p-3 bg-gray-100 rounded-md text-sm text-gray-700">
+                                <div className="grid grid-cols-1 gap-y-1 text-center">
+                                    <span>Working Days (excl. weekends/holidays): <span className="font-semibold text-gray-900">{leavePreview ? leavePreview.workingDays : 0}</span></span>
+                                    <span>Public Holidays: <span className="font-semibold text-gray-900">{leavePreview ? leavePreview.holidayCount : 0}</span></span>
+                                    <span>Leave Hours Charged: <span className="font-semibold text-gray-900">{leavePreview ? leavePreview.leaveHours.toFixed(2) : '0.00'}</span></span>
+                                    <span>Leave Days to Deduct: <span className="font-semibold text-gray-900">{leavePreview ? leavePreview.leaveDays.toFixed(2) : '0.00'}</span></span>
+                                </div>
                             </div>
+                            {leavePreview && leavePreview.holidayMatches.length > 0 && (
+                                <div className="p-3 bg-white border border-gray-200 rounded-md text-xs text-gray-700">
+                                    <p className="font-semibold uppercase tracking-wide">Public holidays in this range</p>
+                                    <ul className="mt-1 space-y-1 list-disc list-inside">
+                                        {leavePreview.holidayMatches.map(entry => (
+                                            <li key={entry}>{entry}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
                             <div>
                                 <label className="text-sm font-medium text-gray-700">Leave Note</label>
                                 <textarea

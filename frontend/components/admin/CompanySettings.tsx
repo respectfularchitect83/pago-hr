@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Company, SupportedCountry, Employee, LeaveType, HRUser } from '../../types';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { Company, SupportedCountry, Employee, LeaveType, HRUser, HolidayInstance } from '../../types';
 import EditableField from './EditableField';
 import { countryRegulations } from '../../data/regulations';
+import { getPublicHolidaysForDisplay } from '../../data/publicHolidays';
 import { convertToCSV, downloadCSV } from '../../utils/csvHelper';
 import DownloadIcon from '../icons/DownloadIcon';
 import PlusIcon from '../icons/PlusIcon';
@@ -27,6 +28,24 @@ const CompanySettings: React.FC<CompanySettingsProps> = ({ company, onSave, empl
     const [logoError, setLogoError] = useState<string | null>(null);
     
     const regulations = countryRegulations[localCompany.country];
+    const currentYear = new Date().getFullYear();
+    const groupedHolidays = useMemo<Array<[string, HolidayInstance[]]>>(() => {
+        const startYear = currentYear;
+        const endYear = currentYear + 1;
+        const items = getPublicHolidaysForDisplay(localCompany.country, startYear, endYear);
+        const groups: Record<string, HolidayInstance[]> = {};
+        items.forEach(item => {
+            const yearKey = item.date.slice(0, 4);
+            if (!groups[yearKey]) {
+                groups[yearKey] = [];
+            }
+            groups[yearKey].push(item);
+        });
+        Object.values(groups).forEach(list => {
+            list.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+        });
+        return Object.entries(groups).sort((a, b) => Number(a[0]) - Number(b[0]));
+    }, [localCompany.country, currentYear]);
 
     useEffect(() => {
         setLocalCompany(company);
@@ -257,6 +276,33 @@ const CompanySettings: React.FC<CompanySettingsProps> = ({ company, onSave, empl
                                     </div>
                                 )}
                             </div>
+                        </div>
+                    </div>
+                    <div className="p-4 bg-white rounded-lg border border-gray-200">
+                        <h3 className="text-md font-semibold text-gray-700 mb-1">Public Holidays ({localCompany.country})</h3>
+                        <p className="text-xs text-gray-500">Official calendars for {currentYear} and {currentYear + 1}.</p>
+                        <div className="mt-3 max-h-64 overflow-y-auto pr-1 space-y-3">
+                            {groupedHolidays.length > 0 ? (
+                                groupedHolidays.map(([year, entries]) => (
+                                    <div key={year}>
+                                        <p className="text-sm font-semibold text-gray-600">{year}</p>
+                                        <ul className="mt-1 space-y-1 text-sm text-gray-700">
+                                            {entries.map(entry => {
+                                                const observedLabel = entry.isObserved ? ' (observed)' : '';
+                                                const key = `${entry.date}-${entry.isObserved ? 'observed' : 'official'}`;
+                                                return (
+                                                    <li key={key} className="flex flex-col">
+                                                        <span className="font-medium text-gray-800">{entry.date} - {entry.name}{observedLabel}</span>
+                                                        {entry.notes && <span className="text-xs text-gray-500">{entry.notes}</span>}
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-sm text-gray-500">No public holiday data available.</p>
+                            )}
                         </div>
                     </div>
                     

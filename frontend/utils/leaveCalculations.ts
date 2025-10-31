@@ -1,34 +1,126 @@
-import { Employee, Company, LeaveType } from '../types';
+import { Employee, Company, LeaveType, LeaveDurationBreakdown } from '../types';
+import { getPublicHolidayDateSet, getPublicHolidayInstances } from '../data/publicHolidays';
+
+export interface LeaveCalculationOptions {
+    employee?: Employee;
+    company?: Company;
+}
+
+const STANDARD_LEAVE_DAY_HOURS = 8;
+
+const toISODate = (date: Date): string => date.toISOString().split('T')[0];
+
+const getDailyLeaveHours = (options: LeaveCalculationOptions): number => {
+    const { employee, company } = options;
+    if (company?.country === 'Namibia' && employee) {
+        if (employee.appointmentHours >= 189) {
+            return 9.5;
+        }
+        if (employee.appointmentHours >= 180) {
+            return 9;
+        }
+    }
+    return STANDARD_LEAVE_DAY_HOURS;
+};
+
+const usesSixDayWeek = (options: LeaveCalculationOptions): boolean => {
+    const { employee, company } = options;
+    return Boolean(company?.country === 'Namibia' && employee && employee.appointmentHours >= 189);
+};
 
 /**
- * Calculates the number of working days between two dates (inclusive), excluding weekends.
+ * Calculates the number of leave days to deduct, taking into account weekends, public holidays,
+ * and Namibia-specific working hour rules. The result is expressed in standard eight-hour leave days.
  * @param startDateStr The start date in 'YYYY-MM-DD' format.
  * @param endDateStr The end date in 'YYYY-MM-DD' format.
- * @returns The number of working days.
+ * @param options Optional context with the employee and company for accurate rules.
+ * @returns The leave days to deduct, rounded to two decimal places.
  */
-export const calculateWorkingDays = (startDateStr: string, endDateStr: string): number => {
+export const calculateWorkingDays = (
+    startDateStr: string,
+    endDateStr: string,
+    options: LeaveCalculationOptions = {}
+): number => {
+    return calculateLeaveDuration(startDateStr, endDateStr, options).leaveDays;
+};
+
+export const calculateLeaveDuration = (
+    startDateStr: string,
+    endDateStr: string,
+    options: LeaveCalculationOptions = {}
+): LeaveDurationBreakdown => {
     const start = new Date(startDateStr);
     const end = new Date(endDateStr);
 
     if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
-        return 0;
+        return {
+            workingDays: 0,
+            leaveHours: 0,
+            leaveDays: 0,
+            holidayCount: 0,
+            holidayMatches: []
+        };
     }
-    
-    // Add one day to the end date to make the loop inclusive
-    end.setDate(end.getDate() + 1);
 
-    let count = 0;
-    const curDate = new Date(start.getTime());
-    
-    while (curDate.getTime() < end.getTime()) {
-        const dayOfWeek = curDate.getDay();
-        if (dayOfWeek !== 0 && dayOfWeek !== 6) { // 0 = Sunday, 6 = Saturday
-            count++;
-        }
-        curDate.setDate(curDate.getDate() + 1);
+    const inclusiveEnd = new Date(end.getTime());
+    inclusiveEnd.setDate(inclusiveEnd.getDate() + 1);
+
+    const years: number[] = [];
+    for (let year = start.getFullYear(); year <= end.getFullYear(); year++) {
+        years.push(year);
     }
-    
-    return count;
+
+    const holidayInstances = getPublicHolidayInstances(options.company?.country, years);
+    const holidayLookup = new Map<string, { name: string; isObserved: boolean; notes?: string }>();
+    holidayInstances.forEach(instance => {
+        holidayLookup.set(instance.date, {
+            name: instance.name,
+            isObserved: instance.isObserved,
+            notes: instance.notes
+        });
+    });
+
+    const holidayDateSet = getPublicHolidayDateSet(options.company?.country, years);
+
+    let workingDays = 0;
+    let leaveHours = 0;
+    let holidayCount = 0;
+    const holidayMatches: string[] = [];
+    const dailyLeaveHours = getDailyLeaveHours(options);
+    const treatSaturdayAsWorkingDay = usesSixDayWeek(options);
+
+    const cursor = new Date(start.getTime());
+    while (cursor.getTime() < inclusiveEnd.getTime()) {
+        const dayOfWeek = cursor.getDay();
+        const isWeekend = treatSaturdayAsWorkingDay ? dayOfWeek === 0 : dayOfWeek === 0 || dayOfWeek === 6;
+        const isoDate = toISODate(cursor);
+
+        if (holidayDateSet.has(isoDate)) {
+            holidayCount++;
+            const details = holidayLookup.get(isoDate);
+            if (details) {
+                const observedSuffix = details.isObserved ? ' (observed)' : '';
+                holidayMatches.push(`${isoDate} - ${details.name}${observedSuffix}`);
+            } else {
+                holidayMatches.push(`${isoDate}`);
+            }
+        } else if (!isWeekend) {
+            workingDays++;
+            leaveHours += dailyLeaveHours;
+        }
+
+        cursor.setDate(cursor.getDate() + 1);
+    }
+
+    const leaveDays = leaveHours / STANDARD_LEAVE_DAY_HOURS;
+
+    return {
+        workingDays,
+        leaveHours: Number(leaveHours.toFixed(2)),
+        leaveDays: Number(leaveDays.toFixed(2)),
+        holidayCount,
+        holidayMatches
+    };
 };
 
 

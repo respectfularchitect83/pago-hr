@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Employee, Message, LeaveType, Company } from '../../types';
-import { calculateWorkingDays, calculateLeaveBalances } from '../../utils/leaveCalculations';
+import { Employee, Message, LeaveType, Company, LeaveDurationBreakdown } from '../../types';
+import { calculateLeaveDuration, calculateLeaveBalances } from '../../utils/leaveCalculations';
 
 interface LeaveApplicationViewProps {
     employee: Employee;
@@ -33,7 +33,7 @@ const LeaveApplicationView: React.FC<LeaveApplicationViewProps> = ({ employee, c
     });
 
     const selectedBalance = leaveBalances[leaveDetails.type];
-    const [workingDays, setWorkingDays] = useState(0);
+    const [leaveSummary, setLeaveSummary] = useState<LeaveDurationBreakdown | null>(null);
     const [isSubmitted, setIsSubmitted] = useState(false);
 
     useEffect(() => {
@@ -44,12 +44,15 @@ const LeaveApplicationView: React.FC<LeaveApplicationViewProps> = ({ employee, c
 
     useEffect(() => {
         if (leaveDetails.startDate && leaveDetails.endDate) {
-            const days = calculateWorkingDays(leaveDetails.startDate, leaveDetails.endDate);
-            setWorkingDays(days);
+            const summary = calculateLeaveDuration(leaveDetails.startDate, leaveDetails.endDate, {
+                employee,
+                company: companyInfo
+            });
+            setLeaveSummary(summary);
         } else {
-            setWorkingDays(0);
+            setLeaveSummary(null);
         }
-    }, [leaveDetails.startDate, leaveDetails.endDate]);
+    }, [leaveDetails.startDate, leaveDetails.endDate, employee, companyInfo]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement | HTMLTextAreaElement>) => {
         setLeaveDetails({ ...leaveDetails, [e.target.name]: e.target.value });
@@ -57,10 +60,14 @@ const LeaveApplicationView: React.FC<LeaveApplicationViewProps> = ({ employee, c
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (workingDays <= 0) {
+    if (!leaveSummary || leaveSummary.leaveDays <= 0) {
             alert('Please select a valid date range.');
             return;
         }
+
+    const holidaySection = leaveSummary.holidayMatches.length
+        ? `Public Holidays Skipped:\n${leaveSummary.holidayMatches.map(entry => `- ${entry}`).join('\n')}`
+        : 'Public Holidays Skipped:\n- None';
 
         const messageContent = `
 LEAVE APPLICATION
@@ -69,7 +76,11 @@ Employee: ${employee.name} (${employee.employeeId})
 Leave Type: ${leaveDetails.type}
 Start Date: ${leaveDetails.startDate}
 End Date: ${leaveDetails.endDate}
-Total Days: ${workingDays}
+Working Days (excl. weekends/holidays): ${leaveSummary.workingDays}
+Leave Hours Charged: ${leaveSummary.leaveHours}
+Leave Days to Deduct: ${leaveSummary.leaveDays}
+
+${holidaySection}
 
 Reason/Notes:
 ${leaveDetails.notes || 'No reason provided.'}
@@ -148,8 +159,23 @@ ${leaveDetails.notes || 'No reason provided.'}
                     </div>
                  </div>
                       <div className="p-3 bg-gray-100 rounded-md text-center">
-                    <p className="text-sm font-medium text-gray-600">Total Working Days: <span className="text-lg font-bold text-gray-800">{workingDays}</span></p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-1 text-sm text-gray-600">
+                        <span>Working Days (excl. weekends/holidays): <span className="font-semibold text-gray-800">{leaveSummary ? leaveSummary.workingDays : 0}</span></span>
+                        <span>Public Holidays: <span className="font-semibold text-gray-800">{leaveSummary ? leaveSummary.holidayCount : 0}</span></span>
+                        <span>Leave Hours Charged: <span className="font-semibold text-gray-800">{leaveSummary ? leaveSummary.leaveHours.toFixed(2) : '0.00'}</span></span>
+                        <span>Leave Days to Deduct: <span className="font-semibold text-gray-800">{leaveSummary ? leaveSummary.leaveDays.toFixed(2) : '0.00'}</span></span>
+                    </div>
                  </div>
+                 {leaveSummary && leaveSummary.holidayMatches.length > 0 && (
+                    <div className="p-3 bg-white border border-gray-200 rounded-md">
+                        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Public holidays in this range</p>
+                        <ul className="mt-2 space-y-1 text-sm text-gray-700 list-disc list-inside">
+                            {leaveSummary.holidayMatches.map(entry => (
+                                <li key={entry}>{entry}</li>
+                            ))}
+                        </ul>
+                    </div>
+                 )}
                  <div>
                     <label htmlFor="notes" className="block text-sm font-medium text-gray-700">Reason / Notes (Optional)</label>
                     <textarea
@@ -165,7 +191,7 @@ ${leaveDetails.notes || 'No reason provided.'}
                  <div>
                     <button
                         type="submit"
-                        disabled={workingDays <= 0}
+                        disabled={!leaveSummary || leaveSummary.leaveDays <= 0}
                         className="w-full py-3 px-4 bg-gray-800 text-white font-semibold rounded-lg hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
                     >
                         Submit Request
