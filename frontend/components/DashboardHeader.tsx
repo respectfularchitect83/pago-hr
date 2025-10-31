@@ -27,9 +27,12 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ view, employee, compa
         return calculateLeaveBalances(employee, companyInfo);
     }, [employee, companyInfo]);
 
-    const totalAvailableLeave = leaveBalances
-        ? Object.values(leaveBalances).reduce((sum, balance) => sum + (balance?.available ?? 0), 0)
-        : null;
+    const leaveTypesToDisplay = useMemo(() => {
+        if (!companyInfo?.leaveSettings) {
+            return [] as string[];
+        }
+        return Object.keys(companyInfo.leaveSettings).filter(type => type !== 'Unpaid');
+    }, [companyInfo]);
     
     const getHeaderText = () => {
         switch(view) {
@@ -42,13 +45,6 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ view, employee, compa
     }
 
     if (view === 'list') {
-        const keyBalancesToShow = ['Annual', 'Sick'];
-        if (employee.gender === 'Female') {
-            keyBalancesToShow.push('Maternity');
-        } else if (employee.gender === 'Male') {
-            keyBalancesToShow.push('Paternity');
-        }
-
         return (
             <header className="flex flex-col items-center text-center p-6 pt-12 bg-white rounded-xl shadow-md relative print:hidden">
                 <div className="absolute top-4 right-4 flex items-center space-x-2">
@@ -84,25 +80,28 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ view, employee, compa
                 />
                 <h1 className="text-3xl font-bold text-gray-900 mt-2 text-center sm:text-left">{`Welcome, ${employee.name}`}</h1>
                 <p className="text-md text-gray-500">{employee.position}</p>
-                {typeof totalAvailableLeave === 'number' && (
-                    <p className="text-sm text-gray-600 mt-1">Available Leave: {totalAvailableLeave.toFixed(1)} days</p>
-                )}
-
-                {leaveBalances && (
+                {leaveBalances && leaveTypesToDisplay.length > 0 && (
                     <div className="mt-4 w-full">
                         <p className="text-xs uppercase tracking-wide text-gray-500">Leave Balances</p>
-                        <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm text-gray-600">
-                            {keyBalancesToShow.map(type => {
+                        <div className="mt-2 flex w-full flex-wrap justify-center gap-3 text-sm text-gray-600">
+                            {leaveTypesToDisplay.map(type => {
                                 const balance = leaveBalances[type as keyof typeof leaveBalances];
-                                if (balance) {
+                                if (!balance) {
                                     return (
-                                        <div key={type} className="flex items-center">
+                                        <div key={type} className="rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm">
                                             <span className="font-semibold mr-1">{type}:</span>
-                                            <span>{balance.available.toFixed(1)} days</span>
+                                            <span>0 days remaining</span>
                                         </div>
                                     );
                                 }
-                                return null;
+                                return (
+                                    <div key={type} className="rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm">
+                                        <p className="font-semibold text-gray-700">{type}</p>
+                                        <p className="text-xs text-gray-500">Accrued: {balance.accrued.toFixed(1)} days</p>
+                                        <p className="text-xs text-gray-500">Taken: {balance.taken.toFixed(1)} days</p>
+                                        <p className="text-sm font-medium text-gray-800">Remaining: {balance.available.toFixed(1)} days</p>
+                                    </div>
+                                );
                             })}
                         </div>
                     </div>
