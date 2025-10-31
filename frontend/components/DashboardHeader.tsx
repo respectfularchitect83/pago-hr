@@ -31,14 +31,15 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ view, employee, compa
         if (!companyInfo?.leaveSettings) {
             return [] as string[];
         }
+    const normalizedGender = (employee.gender || '').toLowerCase();
         return Object.keys(companyInfo.leaveSettings).filter(type => {
             if (type === 'Unpaid') {
                 return false;
             }
-            if (type === 'Maternity' && employee.gender !== 'Female') {
+            if (type === 'Maternity' && normalizedGender !== 'female') {
                 return false;
             }
-            if (type === 'Paternity' && employee.gender !== 'Male') {
+            if (type === 'Paternity' && normalizedGender !== 'male') {
                 return false;
             }
             return true;

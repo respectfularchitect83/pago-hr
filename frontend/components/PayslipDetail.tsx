@@ -102,10 +102,22 @@ const PayslipDetail: React.FC<PayslipDetailProps> = ({ payslip, employee, compan
     if (!leaveBalances) {
       return [] as Array<{ type: string; available: number }>;
     }
+  const normalizedGender = (employee.gender || '').toLowerCase();
     return Object.entries(leaveBalances)
-      .filter(([_, balance]) => Boolean(balance))
+      .filter(([type, balance]) => {
+        if (!balance) {
+          return false;
+        }
+        if (type === 'Maternity' && normalizedGender !== 'female') {
+          return false;
+        }
+        if (type === 'Paternity' && normalizedGender !== 'male') {
+          return false;
+        }
+        return true;
+      })
       .map(([type, balance]) => ({ type, available: balance!.available }));
-  }, [leaveBalances]);
+  }, [leaveBalances, employee.gender]);
 
   const formatMoney = (value: number) => formatCurrency(value, companyInfo.country);
   
