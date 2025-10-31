@@ -27,6 +27,33 @@ const toResponsePayload = (company: Company | undefined) => {
   };
 };
 
+const toPublicPayload = (company: Company | undefined, slug: string | undefined) => {
+  if (!company) {
+    return {
+      name: DEFAULT_COMPANY.name,
+      logoUrl: DEFAULT_COMPANY.logoUrl,
+      slug: slug ?? null,
+    };
+  }
+
+  return {
+    name: company.name ?? DEFAULT_COMPANY.name,
+    logoUrl: company.logo_url ?? DEFAULT_COMPANY.logoUrl,
+    slug: slug ?? company.slug ?? null,
+  };
+};
+
+export const getCompanyPublicInfo = (req: TenantRequest, res: Response) => {
+  try {
+    const company = req.tenant?.company;
+    const slug = req.tenant?.slug;
+    res.json(toPublicPayload(company, slug));
+  } catch (error) {
+    logger.error('Failed to fetch public company info', { error: error instanceof Error ? error.message : error });
+    res.status(500).json({ error: 'Failed to fetch company info' });
+  }
+};
+
 export const getCompanySettings = async (req: TenantRequest, res: Response) => {
   try {
     const company = req.tenant?.company;

@@ -5,9 +5,11 @@ interface LoginScreenProps {
   onLoginAttempt: (employeeId: string, password: string) => Promise<boolean>;
   onSwitchToAdminLogin: () => void;
   onOpenCompanyRegistration: () => void;
+  companyName?: string;
+  companyLogoUrl?: string;
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginAttempt, onSwitchToAdminLogin, onOpenCompanyRegistration }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginAttempt, onSwitchToAdminLogin, onOpenCompanyRegistration, companyName, companyLogoUrl }) => {
   const [employeeId, setEmployeeId] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [error, setError] = useState<string>('');
@@ -37,11 +39,22 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginAttempt, onSwitchToAdm
     <div className="flex flex-col items-center justify-center min-h-screen py-10">
       <div className="w-full max-w-xs p-8 space-y-6 bg-white rounded-3xl shadow-lg text-center relative">
         <div className="flex justify-center">
-          <div className="p-4 bg-gray-200 rounded-full">
-            <IdentificationIcon className="h-8 w-8 text-gray-600" />
-          </div>
+          {companyLogoUrl ? (
+            <img
+              src={companyLogoUrl}
+              alt={`${companyName ?? 'Company'} logo`}
+              className="h-16 w-auto object-contain"
+            />
+          ) : (
+            <div className="p-4 bg-gray-200 rounded-full">
+              <IdentificationIcon className="h-8 w-8 text-gray-600" />
+            </div>
+          )}
         </div>
         <h1 className="text-2xl font-bold text-gray-900">Employee Login</h1>
+        {companyName && (
+          <p className="text-sm font-semibold text-gray-700">{companyName}</p>
+        )}
         
     <p className="text-xs text-gray-500">
       Please enter your Employee ID and password.

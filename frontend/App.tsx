@@ -366,6 +366,85 @@ const App: React.FC = () => {
   const [pendingEmployeeId, setPendingEmployeeId] = useState<string | null>(null);
   const [pendingEmployeeEmail, setPendingEmployeeEmail] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<Employee | HRUser | null>(null);
+
+  // Update favicon so the browser tab reflects the active tenant.
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const loadPublicCompanyInfo = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/company/public-info`, {
+          headers: withTenantHeader(),
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = await response.json();
+        if (cancelled) {
+          return;
+        }
+
+        setCompanyInfo(prev => ({
+          ...prev,
+          name: typeof payload?.name === 'string' && payload.name.trim() ? payload.name : prev.name,
+          logoUrl: typeof payload?.logoUrl === 'string' && payload.logoUrl.trim()
+            ? payload.logoUrl
+            : prev.logoUrl,
+        }));
+      } catch (error) {
+        if (!cancelled) {
+          console.warn('Failed to load public company info', error);
+        }
+      }
+    };
+
+    void loadPublicCompanyInfo();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    const head = document.head || document.getElementsByTagName('head')[0];
+    if (!head) {
+      return;
+    }
+
+    let link = head.querySelector<HTMLLinkElement>('link[rel*="icon"]');
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      head.appendChild(link);
+    }
+
+    const logoUrl = companyInfo.logoUrl?.trim();
+    if (logoUrl) {
+      link.href = logoUrl;
+      link.type = '';
+      link.sizes = '';
+      return;
+    }
+
+    const name = companyInfo.name?.trim();
+    if (!name) {
+      return;
+    }
+
+    const letter = name.charAt(0).toUpperCase();
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#111827"/><text x="50%" y="50%" dy=".36em" text-anchor="middle" font-family="Arial, sans-serif" font-size="36" fill="#F9FAFB">${letter}</text></svg>`;
+    const encoded = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+    link.href = encoded;
+    link.type = 'image/svg+xml';
+    link.sizes = 'any';
+  }, [companyInfo.logoUrl, companyInfo.name]);
+
   // Fetch data from backend API on mount
   React.useEffect(() => {
     if (!authToken || !currentUser) {
@@ -637,7 +716,6 @@ const App: React.FC = () => {
     setCurrentUser(null);
     setAuthToken(null);
     setEmployees([]);
-    setCompanyInfo(defaultCompanyInfo);
     setHrUsers([]);
     setPendingEmployeeId(null);
     setPendingEmployeeEmail(null);
@@ -1101,23 +1179,23 @@ const App: React.FC = () => {
 
 
   const renderContent = () => {
+    const rawLogo = companyInfo.logoUrl ?? '';
+    const loginLogoUrl = rawLogo.trim().length > 0 ? rawLogo : undefined;
+
     if (!currentUser) {
         if (loginView === 'landing') {
           return (
             <div className="flex flex-col items-center justify-center min-h-screen py-10">
               <div className="w-full max-w-md p-10 space-y-6 bg-white rounded-3xl shadow-lg text-center">
                 <h1 className="text-3xl font-bold text-gray-900">Welcome to PAGO HR</h1>
-                <p className="text-sm text-gray-600">
-                  Register your organisation or access an existing tenant workspace.
-                </p>
                 <button
                   onClick={() => setLoginView('register')}
                   className="w-full py-3 px-4 bg-gray-800 text-white font-semibold rounded-lg hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
                 >
-                  Register a company
+                  Signup
                 </button>
                 <div className="space-y-3 pt-4">
-                  <p className="text-xs text-gray-500">Already onboarded? Enter your subdomain to continue.</p>
+                  <p className="text-xs text-gray-500">Enter your subdomain to continue.</p>
                   <input
                     type="text"
                     value={pendingSlug}
@@ -1149,7 +1227,7 @@ const App: React.FC = () => {
                     }}
                     className="w-full py-3 px-4 bg-white text-gray-800 font-semibold rounded-lg border border-gray-300 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
                   >
-                    Go to tenant login
+                    login
                   </button>
                 </div>
               </div>
@@ -1165,9 +1243,25 @@ const App: React.FC = () => {
           );
         }
         if (loginView === 'admin') {
-            return <AdminLoginScreen onLoginAttempt={handleAdminLoginSuccess} onSwitchToEmployeeLogin={() => setLoginView('employee')} onOpenCompanyRegistration={() => setLoginView('register')} />;
+            return (
+              <AdminLoginScreen
+                onLoginAttempt={handleAdminLoginSuccess}
+                onSwitchToEmployeeLogin={() => setLoginView('employee')}
+                onOpenCompanyRegistration={() => setLoginView('register')}
+                companyName={companyInfo.name}
+                companyLogoUrl={loginLogoUrl}
+              />
+            );
         }
-        return <LoginScreen onLoginAttempt={handleLoginSuccess} onSwitchToAdminLogin={() => setLoginView('admin')} onOpenCompanyRegistration={() => setLoginView('register')} />;
+        return (
+          <LoginScreen
+            onLoginAttempt={handleLoginSuccess}
+            onSwitchToAdminLogin={() => setLoginView('admin')}
+            onOpenCompanyRegistration={() => setLoginView('register')}
+            companyName={companyInfo.name}
+            companyLogoUrl={loginLogoUrl}
+          />
+        );
     }
 
     if (currentUser && 'username' in currentUser) {
