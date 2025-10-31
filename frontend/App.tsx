@@ -605,10 +605,11 @@ const App: React.FC = () => {
   // Admin login handler with password
   const handleAdminLoginSuccess = async (username: string, password: string): Promise<boolean> => {
     try {
-  const res = await fetch(`${API_URL}/api/auth/login`, {
+    const normalizedEmail = username.trim().toLowerCase();
+    const res = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: withTenantHeader({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ email: username, password })
+        body: JSON.stringify({ email: normalizedEmail, password })
       });
       if (!res.ok) return false;
       const data = await res.json();
@@ -617,7 +618,7 @@ const App: React.FC = () => {
         setPendingEmployeeEmail(null);
         const mappedAdmin: HRUser = {
           id: data.user.id ? String(data.user.id) : username,
-          username: data.user.email ?? username,
+          username: data.user.email ?? normalizedEmail,
           photoUrl: data.user.photoUrl ?? data.user.photo_url,
         };
         setCurrentUser(mappedAdmin);
