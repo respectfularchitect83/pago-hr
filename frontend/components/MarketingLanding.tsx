@@ -8,18 +8,18 @@ interface MarketingLandingProps {
 const tierCards = [
   {
     name: 'Starter',
-    price: 'Free trial',
+    price: 'Free trial for 7 days',
     description: 'Ideal for households and first-time payroll teams.',
-    bullets: ['Up to 3 employees', 'Automated payslips', 'Household compliance kit'],
+    bullets: ['Up to 3 employees', 'Automated payslips', 'Leave management'],
   },
   {
     name: 'Growing Business',
-    price: 'R79 / employee',
+    price: 'R50 / employee',
     description: 'Full HR suite for modern multi-branch teams.',
-    bullets: ['Unlimited payslips', 'Leave & overtime intelligence', 'Multi-tenant branding'],
+    bullets: ['Ideal for your small business', 'Leave & overtime', 'Employee Login'],
   },
   {
-    name: 'Managed',
+    name: 'Customised',
     price: 'Let’s chat',
     description: 'We co-pilot payroll and HR alongside your finance team.',
     bullets: ['Dedicated specialist', 'Custom workflows', 'Priority support'],
@@ -102,23 +102,6 @@ const MarketingLanding: React.FC<MarketingLandingProps> = ({
 
         <section className="mx-auto max-w-6xl px-6 pb-32" />
       </main>
-
-      <footer className="border-t border-[#b9bea1]/20 bg-[#363925]/90">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-8 text-center text-xs text-[#b5ba9d] md:flex-row md:text-left">
-          <p>© {new Date().getFullYear()} PAGO HR. All rights reserved.</p>
-          <div className="flex gap-6">
-            <button onClick={() => setShowContact(true)} className="transition hover:text-[#f8f6e8]" type="button">
-              Contact
-            </button>
-            <button onClick={onRequestSignup} className="transition hover:text-[#f8f6e8]" type="button">
-              Start trial
-            </button>
-            <a className="transition hover:text-[#f8f6e8]" href="https://www.paysauce.com" target="_blank" rel="noreferrer">
-              Inspired by PaySauce
-            </a>
-          </div>
-        </div>
-      </footer>
 
       {showContact && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#242611]/80 px-6">
