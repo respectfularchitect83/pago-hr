@@ -5,7 +5,6 @@ import EditableField from './EditableField';
 import PayslipEditor from './PayslipEditor';
 import PlusIcon from '../icons/PlusIcon';
 import PencilIcon from '../icons/PencilIcon';
-import TrashIcon from '../icons/TrashIcon';
 import { bankData } from '../../data/mockData';
 import { formatDateOnly } from '../../utils/date';
 
@@ -179,12 +178,12 @@ const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, com
     setIsPayslipEditorOpen(true);
   };
   
-    const handleDeletePayslip = async (payslipId?: string) => {
+    const handleDeletePayslip = async (payslipId?: string): Promise<boolean> => {
         if (!payslipId || !localEmployee.id || localEmployee.id === 'new') {
-        return;
+        return false;
     }
     if (!window.confirm("Are you sure you want to delete this payslip?")) {
-        return;
+        return false;
     }
 
     try {
@@ -193,9 +192,11 @@ const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, com
             ...prev,
             payslips: (prev.payslips || []).filter(p => p.id !== payslipId),
         }));
+        return true;
     } catch (error) {
         console.error(error);
         alert('Failed to delete payslip. Please try again.');
+        return false;
     }
   };
 
@@ -454,16 +455,15 @@ const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, com
                     const periodStart = formatDateOnly(p.payPeriodStart);
                     const periodEnd = formatDateOnly(p.payPeriodEnd);
                     return (
-                    <div key={p.id ?? `${p.payDate}-${p.payPeriodStart}` } className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div>
-                            <p className="font-medium text-gray-800">Pay Date: {payDate}</p>
-                            <p className="text-sm text-gray-600">Period: {periodStart} to {periodEnd}</p>
-                        </div>
-                        <div className="flex items-center space-x-3">
-                            <button onClick={() => handleEditPayslip(p)} className="p-2 text-gray-500 hover:text-gray-800"><PencilIcon /></button>
-                            <button onClick={() => handleDeletePayslip(p.id)} className="p-2 text-gray-500 hover:text-gray-800"><TrashIcon /></button>
-                        </div>
-                    </div>
+                    <button
+                        type="button"
+                        onClick={() => handleEditPayslip(p)}
+                        className="w-full text-left">
+                        <span className="flex flex-col gap-1 rounded-lg border border-transparent bg-gray-50 p-3 text-left transition-all hover:border-gray-200 hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300">
+                            <span className="font-medium text-gray-800">Pay Date: {payDate}</span>
+                            <span className="text-sm text-gray-600">Period: {periodStart} to {periodEnd}</span>
+                        </span>
+                    </button>
                     );
                 })}
             </div>
@@ -477,6 +477,15 @@ const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, com
             // FIX: Pass companyInfo to PayslipEditor
             companyInfo={companyInfo}
             onSave={handleSavePayslip}
+            onDelete={editingPayslip ? async payslipToDelete => {
+                if (payslipToDelete.id) {
+                    const wasDeleted = await handleDeletePayslip(payslipToDelete.id);
+                    if (wasDeleted) {
+                        setIsPayslipEditorOpen(false);
+                        setEditingPayslip(null);
+                    }
+                }
+            } : undefined}
             onClose={() => setIsPayslipEditorOpen(false)}
         />
       )}

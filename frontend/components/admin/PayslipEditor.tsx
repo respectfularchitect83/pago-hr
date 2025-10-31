@@ -18,11 +18,12 @@ interface PayslipEditorProps {
     employee: Employee;
     // FIX: Add companyInfo to props to access the country for regulations.
     companyInfo: Company;
-    onSave: (payslip: Payslip) => void;
+    onSave: (payslip: Payslip) => Promise<void> | void;
     onClose: () => void;
+    onDelete?: (payslip: Payslip) => Promise<void> | void;
 }
 
-const PayslipEditor: React.FC<PayslipEditorProps> = ({ payslip, employee, companyInfo, onSave, onClose }) => {
+const PayslipEditor: React.FC<PayslipEditorProps> = ({ payslip, employee, companyInfo, onSave, onClose, onDelete }) => {
     
     // FIX: The 'country' property is on the company, not the employee.
     const { basicSalary } = employee;
@@ -73,6 +74,7 @@ const PayslipEditor: React.FC<PayslipEditorProps> = ({ payslip, employee, compan
     const [editedPayslip, setEditedPayslip] = useState<Payslip | Omit<Payslip, 'id'>>(getInitialPayslip());
     const [isTaxAutomated, setIsTaxAutomated] = useState(true);
     const [isSsAutomated, setIsSsAutomated] = useState(true);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const taxDescription = regulations.tax.description;
     const ssDescription = regulations.socialSecurity.description;
@@ -180,9 +182,21 @@ const PayslipEditor: React.FC<PayslipEditorProps> = ({ payslip, employee, compan
         setEditedPayslip({ ...editedPayslip, [type]: items });
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        onSave(editedPayslip as Payslip);
+        await onSave(editedPayslip as Payslip);
+    };
+
+    const handleDelete = async () => {
+        if (!payslip || !onDelete) {
+            return;
+        }
+        try {
+            setIsDeleting(true);
+            await onDelete(payslip);
+        } finally {
+            setIsDeleting(false);
+        }
     };
     
     const totalEarnings = editedPayslip.earnings.reduce((sum, item) => sum + item.amount, 0);
@@ -298,13 +312,25 @@ const PayslipEditor: React.FC<PayslipEditorProps> = ({ payslip, employee, compan
                             <p className="text-lg">Net Pay: <span className="text-gray-900 font-bold">{formatCurrency(netPay, country)}</span></p>
                         </div>
 
-                        <div className="items-center px-4 py-3">
-                            <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md mr-2 hover:bg-gray-300">
-                                Cancel
-                            </button>
-                            <button type="submit" className="px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900">
-                                Save Payslip
-                            </button>
+                        <div className="flex items-center justify-between px-4 py-3">
+                            {payslip && onDelete && (
+                                <button
+                                    type="button"
+                                    onClick={handleDelete}
+                                    disabled={isDeleting}
+                                    className="px-4 py-2 rounded-md border border-red-300 text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {isDeleting ? 'Deleting…' : 'Delete Payslip'}
+                                </button>
+                            )}
+                            <div className="ml-auto space-x-2">
+                                <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">
+                                    Cancel
+                                </button>
+                                <button type="submit" className="px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900">
+                                    Save Payslip
+                                </button>
+                            </div>
                         </div>
                     </form>
                 </div>
