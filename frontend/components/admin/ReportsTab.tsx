@@ -13,10 +13,16 @@ interface ReportsTabProps {
 
 type ReportType = 'payslip-download' | 'pay-sheet' | 'tax' | 'social-security';
 
+const toLocalIsoString = (date: Date) => {
+    const offsetMinutes = date.getTimezoneOffset();
+    const localTime = new Date(date.getTime() - offsetMinutes * 60000);
+    return localTime.toISOString().split('T')[0];
+};
+
 const ReportsTab: React.FC<ReportsTabProps> = ({ employees, companyInfo }) => {
     const today = new Date();
-    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
+    const firstDayOfMonth = toLocalIsoString(new Date(today.getFullYear(), today.getMonth(), 1));
+    const lastDayOfMonth = toLocalIsoString(new Date(today.getFullYear(), today.getMonth() + 1, 0));
     const currentMonthKey = firstDayOfMonth.slice(0, 7);
 
     const [dates, setDates] = useState({ start: firstDayOfMonth, end: lastDayOfMonth });
@@ -50,8 +56,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ employees, companyInfo }) => {
         }
         const start = new Date(year, monthIndex, 1);
         const end = new Date(year, monthIndex + 1, 0);
-        const toIso = (date: Date) => date.toISOString().split('T')[0];
-        setDates({ start: toIso(start), end: toIso(end) });
+        setDates({ start: toLocalIsoString(start), end: toLocalIsoString(end) });
     }, [selectedMonth]);
 
     useEffect(() => {

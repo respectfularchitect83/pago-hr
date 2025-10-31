@@ -24,7 +24,6 @@ type PayslipTableRow = {
   payDate: string;
   periodStart: string;
   periodEnd: string;
-  status: string;
   netPay: number;
 };
 
@@ -87,7 +86,6 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
             payDate: formatDateOnly(p.payDate),
             periodStart: formatDateOnly(p.payPeriodStart),
             periodEnd: formatDateOnly(p.payPeriodEnd),
-            status: p.status ?? 'draft',
             netPay: Number(netPay.toFixed(2)),
           };
         });
@@ -128,7 +126,6 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
         payDate: row.payDate,
         periodStart: row.periodStart,
         periodEnd: row.periodEnd,
-        status: row.status,
         netPay: formatCurrency(row.netPay),
       }))
     );
@@ -150,7 +147,6 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
         payDate: row.payDate,
         periodStart: row.periodStart,
         periodEnd: row.periodEnd,
-        status: row.status,
         netPay: formatCurrency(row.netPay),
       })),
       columns: [
@@ -160,7 +156,6 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
         { key: 'payDate', label: 'Pay Date' },
         { key: 'periodStart', label: 'Period Start' },
         { key: 'periodEnd', label: 'Period End' },
-        { key: 'status', label: 'Status' },
         { key: 'netPay', label: 'Net Pay', align: 'right' },
       ],
     });
@@ -215,7 +210,6 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Pay</th>
               <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
             </tr>
@@ -227,7 +221,6 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{row.employeeName} ({row.employeeId})</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.branch}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.periodStart} - {row.periodEnd}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">{row.status}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">{formatCurrency(row.netPay)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
                     <div className="flex items-center justify-center gap-2">
@@ -252,7 +245,7 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
               ))
             ) : (
               <tr>
-                <td colSpan={6} className="text-center py-8 text-gray-500">No payslips found for the selected filters.</td>
+                <td colSpan={5} className="text-center py-8 text-gray-500">No payslips found for the selected filters.</td>
               </tr>
             )}
           </tbody>

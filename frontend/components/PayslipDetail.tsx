@@ -125,123 +125,160 @@ const PayslipDetail: React.FC<PayslipDetailProps> = ({ payslip, employee, compan
   const formatMoney = (value: number) => formatCurrency(value, companyInfo.country);
   
   const handleDownloadPdf = async () => {
-  const originalElement = document.getElementById('payslip-content');
-  if (!originalElement) {
-    console.error("Payslip content element not found!");
-    return;
-  }
-  if (!window.html2canvas) {
-    console.error("html2canvas is not available on window.");
-    alert("Preview tools failed to load. Please refresh and try again.");
-    return;
-  }
-
-  // Open the preview tab synchronously so browsers treat it as a user gesture
-  const previewWindow = window.open('', '_blank');
-  if (!previewWindow) {
-    alert("We couldn't open a preview tab. Please allow pop-ups and try again.");
-    return;
-  }
-
-  previewWindow.document.write(`
-    <html>
-      <head>
-  <title>Payslip Preview - ${payDate}</title>
-        <style>
-          body { margin: 0; background-color: #f0f0f0; display: flex; justify-content: center; align-items: start; padding: 40px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; }
-          .loading { font-size: 16px; }
-        </style>
-      </head>
-      <body>
-        <div class="loading">Preparing payslip preview...</div>
-      </body>
-    </html>
-  `);
-  previewWindow.document.close();
-
-  setIsGenerating(true);
-
-  // 1. Clone the node to create an isolated element for rendering
-  const clone = originalElement.cloneNode(true) as HTMLElement;
-
-  // 2. Style the clone to be rendered off-screen but with a defined size
-  clone.style.position = 'absolute';
-  clone.style.top = '0';
-  clone.style.left = '-9999px';
-  clone.style.width = `${originalElement.offsetWidth}px`;
-  clone.style.height = 'auto';
-  clone.classList.remove('animate-fade-in'); // Remove animation that could interfere
-
-  const actionsClone = clone.querySelector('#payslip-actions');
-  if (actionsClone) (actionsClone as HTMLElement).style.display = 'none';
-
-  document.body.appendChild(clone);
-
-  // Helper function to wait for all images within an element to load
-  const waitForImages = (element: HTMLElement) => {
-    const images = Array.from(element.getElementsByTagName('img'));
-    const promises = images.map(img => {
-      return new Promise((resolve) => {
-        if (img.complete && img.naturalHeight !== 0) {
-          resolve(true);
-        } else {
-          img.onload = () => resolve(true);
-          img.onerror = () => {
-            console.warn(`Could not load image: ${img.src}`);
-            resolve(false); // Resolve even on error to not break the process
-          };
-        }
-      });
-    });
-    return Promise.all(promises);
-  };
-
-  try {
-    // 3. Wait for images and give a final tick for rendering
-    await waitForImages(clone);
-    await new Promise(resolve => setTimeout(resolve, 50));
-
-    // 4. Run html2canvas on the prepared clone
-    const canvas = await window.html2canvas(clone, {
-      scale: 2,
-      useCORS: true,
-      windowWidth: clone.scrollWidth,
-      windowHeight: clone.scrollHeight,
-    });
-
-    const imgData = canvas.toDataURL('image/png');
-    if (imgData.length < 100) { // Check for a blank image
-      throw new Error("Generated image data is too small, likely blank.");
+    const originalElement = document.getElementById('payslip-content');
+    if (!originalElement) {
+      console.error('Payslip content element not found!');
+      return;
+    }
+    if (!window.html2canvas) {
+      console.error('html2canvas is not available on window.');
+      alert('Preview tools failed to load. Please refresh and try again.');
+      return;
+    }
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+      console.error('jsPDF is not available on window.');
+      alert('PDF tools failed to load. Please refresh and try again.');
+      return;
     }
 
-    previewWindow.document.open();
+    const safeName = (value: string) =>
+      value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'payslip';
+    const fileName = `payslip-${safeName(employee.name || 'employee')}-${safeName(payDate || new Date().toISOString().split('T')[0])}.pdf`;
+
+    const previewWindow = window.open('', '_blank');
+    if (!previewWindow) {
+      alert("We couldn't open a preview tab. Please allow pop-ups and try again.");
+      return;
+    }
+
     previewWindow.document.write(`
       <html>
         <head>
-          <title>Payslip Preview - ${payDate}</title>
+          <title>Payslip PDF - ${payDate}</title>
           <style>
-            body { margin: 0; background-color: #f0f0f0; display: flex; justify-content: center; align-items: start; padding: 20px; }
-            img { max-width: 100%; height: auto; box-shadow: 0 0 15px rgba(0,0,0,0.2); }
+            body { margin: 0; background-color: #f0f0f0; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; }
+            .loading { font-size: 16px; }
           </style>
         </head>
         <body>
-          <img src="${imgData}" alt="Payslip for ${employee.name}" />
+          <div class="loading">Preparing payslip PDF...</div>
         </body>
       </html>
     `);
     previewWindow.document.close();
 
-  } catch (err) {
-    console.error("Preview generation failed:", err);
-    if (!previewWindow.closed) {
-      previewWindow.document.body.innerHTML = '<p style="font-size:16px; color:#b91c1c;">We could not generate your payslip preview. Please try again.</p>';
+    setIsGenerating(true);
+
+    const clone = originalElement.cloneNode(true) as HTMLElement;
+    clone.style.position = 'absolute';
+    clone.style.top = '0';
+    clone.style.left = '-9999px';
+    clone.style.width = `${originalElement.offsetWidth}px`;
+    clone.style.height = 'auto';
+    clone.classList.remove('animate-fade-in');
+
+    const actionsClone = clone.querySelector('#payslip-actions');
+    if (actionsClone) (actionsClone as HTMLElement).style.display = 'none';
+
+    document.body.appendChild(clone);
+
+    const waitForImages = (element: HTMLElement) => {
+      const images = Array.from(element.getElementsByTagName('img'));
+      const promises = images.map(img => {
+        return new Promise(resolve => {
+          if (img.complete && img.naturalHeight !== 0) {
+            resolve(true);
+          } else {
+            img.onload = () => resolve(true);
+            img.onerror = () => {
+              console.warn(`Could not load image: ${img.src}`);
+              resolve(false);
+            };
+          }
+        });
+      });
+      return Promise.all(promises);
+    };
+
+    try {
+      await waitForImages(clone);
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      const canvas = await window.html2canvas(clone, {
+        scale: 2,
+        useCORS: true,
+        windowWidth: clone.scrollWidth,
+        windowHeight: clone.scrollHeight,
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      if (imgData.length < 100) {
+        throw new Error('Generated image data is too small, likely blank.');
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: canvas.width > canvas.height ? 'l' : 'p', unit: 'pt', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 36; // half inch
+      const maxWidth = pageWidth - margin * 2;
+      const maxHeight = pageHeight - margin * 2;
+      const widthRatio = maxWidth / canvas.width;
+      const heightRatio = maxHeight / canvas.height;
+      const scale = Math.min(widthRatio, heightRatio);
+      const renderWidth = canvas.width * scale;
+      const renderHeight = canvas.height * scale;
+      const x = (pageWidth - renderWidth) / 2;
+      const y = (pageHeight - renderHeight) / 2;
+
+      pdf.addImage(imgData, 'PNG', x, y, renderWidth, renderHeight, undefined, 'FAST');
+
+      const pdfBlob = pdf.output('blob');
+      const blobUrl = URL.createObjectURL(pdfBlob);
+
+      if (!previewWindow.closed) {
+        previewWindow.document.open();
+        previewWindow.document.write(`
+          <html>
+            <head>
+              <title>Payslip PDF - ${payDate}</title>
+              <style>
+                body { margin: 0; background-color: #f0f0f0; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; }
+                .viewer { flex: 1 1 auto; width: 100%; max-width: 900px; height: 90vh; box-shadow: 0 0 18px rgba(0,0,0,0.25); border: none; }
+                .actions { margin: 16px 0; display: flex; gap: 12px; }
+                a.button { padding: 10px 16px; border-radius: 9999px; background: #111827; color: #fff; font-weight: 600; text-decoration: none; }
+              </style>
+            </head>
+            <body>
+              <div class="actions">
+                <a class="button" href="${blobUrl}" download="${fileName}">Download PDF</a>
+              </div>
+              <iframe class="viewer" src="${blobUrl}" title="Payslip PDF"></iframe>
+            </body>
+          </html>
+        `);
+        previewWindow.document.close();
+      }
+
+      const downloadLink = document.createElement('a');
+      downloadLink.href = blobUrl;
+      downloadLink.download = fileName;
+      downloadLink.style.display = 'none';
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+    } catch (err) {
+      console.error('PDF generation failed:', err);
+      if (!previewWindow.closed) {
+        previewWindow.document.body.innerHTML = '<p style="font-size:16px; color:#b91c1c;">We could not generate your payslip PDF. Please try again.</p>';
+      }
+      alert('Sorry, there was an error generating the PDF. Please try again.');
+    } finally {
+      document.body.removeChild(clone);
+      setIsGenerating(false);
     }
-    alert("Sorry, there was an error generating the preview. Please try again.");
-  } finally {
-    // 6. Cleanup by removing the clone and resetting the loading state
-    document.body.removeChild(clone);
-    setIsGenerating(false);
-  }
   };
 
   useEffect(() => {
