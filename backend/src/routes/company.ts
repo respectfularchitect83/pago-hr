@@ -4,7 +4,7 @@ import { getCompanySettings, updateCompanySettings } from '../controllers/compan
 
 const router = Router();
 
-router.get('/', auth, requireRole(['admin', 'hr']), getCompanySettings);
+router.get('/', auth, requireRole(['admin', 'hr', 'employee']), getCompanySettings);
 router.put('/', auth, requireRole(['admin', 'hr']), updateCompanySettings);
 
 export default router;
