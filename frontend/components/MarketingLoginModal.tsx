@@ -7,6 +7,7 @@ interface MarketingLoginModalProps {
   onAdminLogin: (email: string, password: string) => Promise<boolean>;
   onSignup: () => void;
   onUseClassicLogin: () => void;
+  tenantSlug: string;
 }
 
 const MarketingLoginModal: React.FC<MarketingLoginModalProps> = ({
@@ -16,6 +17,7 @@ const MarketingLoginModal: React.FC<MarketingLoginModalProps> = ({
   onAdminLogin,
   onSignup,
   onUseClassicLogin,
+  tenantSlug,
 }) => {
   const [activeTab, setActiveTab] = useState<'employee' | 'admin'>('employee');
   const [employeeId, setEmployeeId] = useState('');
@@ -96,7 +98,7 @@ const MarketingLoginModal: React.FC<MarketingLoginModalProps> = ({
           <div className="hidden w-full bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 p-10 text-gray-200 md:block md:w-2/5">
             <h2 className="text-xl font-semibold text-white">Welcome back</h2>
             <p className="mt-4 text-sm text-gray-400">
-              Pago HR keeps payroll, UIF or Social Security, and tax payments aligned. Log in to continue where you left off.
+              PAGO HR keeps payroll, UIF or Social Security, and tax payments aligned. Log in to continue where you left off.
             </p>
             <ul className="mt-8 space-y-3 text-sm text-gray-300">
               <li>• Secure tenant-based access per company</li>
@@ -116,10 +118,13 @@ const MarketingLoginModal: React.FC<MarketingLoginModalProps> = ({
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-white" id={headingId}>
-                  Sign in to Pago HR
+                  Sign in to PAGO HR
                 </h2>
                 <p className="mt-1 text-xs text-gray-500">
                   Select the workspace type that matches your role.
+                </p>
+                <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-blue-100">
+                  Subdomain: {tenantSlug}
                 </p>
               </div>
               <button
@@ -161,6 +166,7 @@ const MarketingLoginModal: React.FC<MarketingLoginModalProps> = ({
             <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
               {activeTab === 'employee' ? (
                 <>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Employee workspace</p>
                   <label className="block text-xs font-medium uppercase tracking-wide text-gray-400" htmlFor="employee-id">
                     Employee ID
                   </label>
@@ -186,6 +192,7 @@ const MarketingLoginModal: React.FC<MarketingLoginModalProps> = ({
                 </>
               ) : (
                 <>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Admin workspace</p>
                   <label className="block text-xs font-medium uppercase tracking-wide text-gray-400" htmlFor="admin-email">
                     Admin email
                   </label>

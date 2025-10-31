@@ -5,11 +5,12 @@ interface AdminLoginScreenProps {
   onLoginAttempt: (email: string, password: string) => Promise<boolean>;
   onSwitchToEmployeeLogin: () => void;
   onOpenCompanyRegistration: () => void;
+  tenantSlug?: string;
   companyName?: string;
   companyLogoUrl?: string;
 }
 
-const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({ onLoginAttempt, onSwitchToEmployeeLogin, onOpenCompanyRegistration, companyName, companyLogoUrl }) => {
+const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({ onLoginAttempt, onSwitchToEmployeeLogin, onOpenCompanyRegistration, companyName, companyLogoUrl, tenantSlug }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -39,6 +40,9 @@ const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({ onLoginAttempt, onS
           )}
         </div>
         <h1 className="text-2xl font-bold text-gray-900">Admin Login</h1>
+        {tenantSlug && (
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Subdomain: {tenantSlug}</p>
+        )}
         {companyName && (
           <p className="text-sm font-semibold text-gray-700">{companyName}</p>
         )}

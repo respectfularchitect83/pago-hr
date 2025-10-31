@@ -85,6 +85,7 @@ import AdminDashboard from './components/admin/AdminDashboard';
 import TenantRegistration from './components/TenantRegistration';
 import MarketingLanding from './components/MarketingLanding';
 import MarketingLoginModal from './components/MarketingLoginModal';
+import ComingSoonLanding from './components/ComingSoonLanding';
 type TenantRegistrationPayload = {
   companyName: string;
   slug?: string;
@@ -369,7 +370,23 @@ const App: React.FC = () => {
   const [pendingEmployeeEmail, setPendingEmployeeEmail] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<Employee | HRUser | null>(null);
   const [isMarketingLoginOpen, setIsMarketingLoginOpen] = useState(false);
-  const [pendingSlug, setPendingSlug] = useState<string>('');
+  const [isMarketingPreview, setIsMarketingPreview] = useState(false);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const previewParam = params.get('preview')?.toLowerCase();
+      if (previewParam === 'marketing') {
+        setIsMarketingPreview(true);
+      }
+    } catch (error) {
+      console.warn('Failed to parse preview flag', error);
+    }
+  }, []);
 
   // Update favicon so the browser tab reflects the active tenant.
   React.useEffect(() => {
@@ -1176,46 +1193,9 @@ const App: React.FC = () => {
       adminEmail,
     };
   }, []);
-
-  const handleTenantLandingRedirect = useCallback(() => {
-    const fallbackSlug = sanitizeTenantSlug(pendingSlug || TENANT_SLUG);
-    if (!fallbackSlug) {
-      alert('Please enter a valid subdomain.');
-      return;
-    }
-
-    if (fallbackSlug === TENANT_SLUG) {
-      setIsMarketingLoginOpen(true);
-      return;
-    }
-
-    if (typeof window === 'undefined') {
-      console.warn('Tenant navigation is only available in the browser.');
-      return;
-    }
-
-    const rootDomainOverride = import.meta.env.VITE_ROOT_APP_DOMAIN;
-    const resolvedRootDomain = rootDomainOverride && rootDomainOverride.trim().length > 0
-      ? rootDomainOverride.trim()
-      : window.location.hostname.includes('.')
-        ? window.location.hostname.split('.').slice(-2).join('.')
-        : 'pago-hr.com';
-
-    const target = resolvedRootDomain
-      ? `https://${fallbackSlug}.${resolvedRootDomain}`
-      : `/tenant/${fallbackSlug}`;
-
-    window.location.href = target;
-  }, [pendingSlug]);
   
   // A bit of a hack to switch between login screens without a router
   const [loginView, setLoginView] = useState<'landing' | 'employee' | 'admin' | 'register'>('landing');
-
-  React.useEffect(() => {
-    if (TENANT_SLUG && TENANT_SLUG !== 'default') {
-      setPendingSlug(TENANT_SLUG);
-    }
-  }, []);
 
   const openSignupFlow = useCallback(() => {
     setIsMarketingLoginOpen(false);
@@ -1230,17 +1210,18 @@ const App: React.FC = () => {
   const renderContent = () => {
     const rawLogo = companyInfo.logoUrl ?? '';
     const loginLogoUrl = rawLogo.trim().length > 0 ? rawLogo : undefined;
+    const isDefaultTenant = TENANT_SLUG === 'default';
 
     if (!currentUser) {
         if (loginView === 'landing') {
+          if (isDefaultTenant && !isMarketingPreview) {
+            return <ComingSoonLanding contactEmail="martinbosman@me.com" />;
+          }
           return (
             <>
               <MarketingLanding
                 onRequestSignup={openSignupFlow}
                 onRequestLogin={handleOpenMarketingLogin}
-                onPendingSlugChange={setPendingSlug}
-                onNavigateToTenant={handleTenantLandingRedirect}
-                pendingSlug={pendingSlug}
               />
               <MarketingLoginModal
                 isOpen={isMarketingLoginOpen}
@@ -1252,6 +1233,7 @@ const App: React.FC = () => {
                   setIsMarketingLoginOpen(false);
                   setLoginView('admin');
                 }}
+                tenantSlug={TENANT_SLUG}
               />
             </>
           );
@@ -1272,6 +1254,7 @@ const App: React.FC = () => {
                 onOpenCompanyRegistration={() => setLoginView('register')}
                 companyName={companyInfo.name}
                 companyLogoUrl={loginLogoUrl}
+                tenantSlug={TENANT_SLUG}
               />
             );
         }
@@ -1282,6 +1265,7 @@ const App: React.FC = () => {
             onOpenCompanyRegistration={() => setLoginView('register')}
             companyName={companyInfo.name}
             companyLogoUrl={loginLogoUrl}
+            tenantSlug={TENANT_SLUG}
           />
         );
     }
