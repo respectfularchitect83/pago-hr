@@ -26,6 +26,10 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ view, employee, compa
         if (!employee || !companyInfo) return null;
         return calculateLeaveBalances(employee, companyInfo);
     }, [employee, companyInfo]);
+
+    const totalAvailableLeave = leaveBalances
+        ? Object.values(leaveBalances).reduce((sum, balance) => sum + (balance?.available ?? 0), 0)
+        : null;
     
     const getHeaderText = () => {
         switch(view) {
@@ -78,8 +82,11 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ view, employee, compa
                     alt={employee.name}
                     className="w-32 h-32 rounded-full object-cover mb-4 shadow-lg border-4 border-white"
                 />
-                <h1 className="text-3xl font-bold text-gray-900 mt-2">{`Welcome, ${employee.name}`}</h1>
+                <h1 className="text-3xl font-bold text-gray-900 mt-2 text-center sm:text-left">{`Welcome, ${employee.name}`}</h1>
                 <p className="text-md text-gray-500">{employee.position}</p>
+                {typeof totalAvailableLeave === 'number' && (
+                    <p className="text-sm text-gray-600 mt-1">Available Leave: {totalAvailableLeave.toFixed(1)} days</p>
+                )}
 
                 {leaveBalances && (
                     <div className="mt-4 w-full">

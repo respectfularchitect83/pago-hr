@@ -46,7 +46,9 @@ const Profile: React.FC<ProfileProps> = ({ employee }) => {
                 <ProfileInfoRow icon={<BriefcaseIcon />} label="Occupation" value={employee.position} />
                 <ProfileInfoRow icon={<CalendarIcon />} label="Start Date" value={formatDateOnly(employee.startDate)} />
                 <ProfileInfoRow icon={<IdentificationIcon />} label="Employee ID" value={employee.employeeId} />
-                <ProfileInfoRow icon={<IdentificationIcon />} label="Tax Number" value={employee.taxNumber} />
+                <ProfileInfoRow icon={<IdentificationIcon />} label="ID Number" value={employee.idNumber || '-'} />
+                <ProfileInfoRow icon={<IdentificationIcon />} label="Tax Number" value={employee.taxNumber || '-'} />
+                <ProfileInfoRow icon={<MapPinIcon />} label="Address" value={employee.address || '-'} />
             </div>
         </div>
 
@@ -54,8 +56,7 @@ const Profile: React.FC<ProfileProps> = ({ employee }) => {
          <div>
             <h3 className="text-lg font-semibold text-gray-800 mb-2 px-2">Contact Information</h3>
              <div className="divide-y divide-gray-200">
-                <ProfileInfoRow icon={<PhoneIcon />} label="Phone Number" value={employee.phoneNumber} />
-                <ProfileInfoRow icon={<MapPinIcon />} label="Address" value={employee.address} />
+        <ProfileInfoRow icon={<PhoneIcon />} label="Phone Number" value={employee.phoneNumber} />
             </div>
         </div>
 

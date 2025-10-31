@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Payslip, Company } from '../types';
+import { Payslip, Company, Employee } from '../types';
 import DownloadIcon from './icons/DownloadIcon';
 import { formatCurrency } from '../utils/payrollCalculations';
 import SpinnerIcon from './icons/SpinnerIcon';
@@ -15,12 +15,11 @@ declare global {
 }
 interface PayslipDetailProps {
   payslip: Payslip;
-  employeeName: string;
-  position: string;
+  employee: Employee;
   companyInfo: Company;
 }
 
-const PayslipDetail: React.FC<PayslipDetailProps> = ({ payslip, employeeName, position, companyInfo }) => {
+const PayslipDetail: React.FC<PayslipDetailProps> = ({ payslip, employee, companyInfo }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const totalEarnings = payslip.earnings.reduce((sum, item) => sum + item.amount, 0);
   const totalDeductions = payslip.deductions.reduce((sum, item) => sum + item.amount, 0);
@@ -28,6 +27,11 @@ const PayslipDetail: React.FC<PayslipDetailProps> = ({ payslip, employeeName, po
   const payDate = formatDateOnly(payslip.payDate);
   const payPeriodStart = formatDateOnly(payslip.payPeriodStart);
   const payPeriodEnd = formatDateOnly(payslip.payPeriodEnd);
+  const employeeId = employee.employeeId || '-';
+  const employeeIdNumber = employee.idNumber || '-';
+  const bankName = employee.bankDetails?.bankName || '-';
+  const bankAccount = employee.bankDetails?.accountNumber || '-';
+  const employeeAddress = employee.address || '-';
   
   const handleDownloadPdf = async () => {
   const originalElement = document.getElementById('payslip-content');
@@ -130,7 +134,7 @@ const PayslipDetail: React.FC<PayslipDetailProps> = ({ payslip, employeeName, po
           </style>
         </head>
         <body>
-          <img src="${imgData}" alt="Payslip for ${employeeName}" />
+          <img src="${imgData}" alt="Payslip for ${employee.name}" />
         </body>
       </html>
     `);
@@ -158,7 +162,7 @@ const PayslipDetail: React.FC<PayslipDetailProps> = ({ payslip, employeeName, po
   );
 
   return (
-    <div id="payslip-content" className="p-6 text-sm animate-fade-in">
+    <div id="payslip-content" className="p-4 sm:p-6 text-sm animate-fade-in">
       <header className="text-center mb-6 pb-4 border-b border-gray-200 relative">
   <h1 className="text-2xl font-bold text-gray-900">Payslip</h1>
   <p className="text-gray-500">PayDate: {payDate}</p>
@@ -169,19 +173,36 @@ const PayslipDetail: React.FC<PayslipDetailProps> = ({ payslip, employeeName, po
         </div>
       </header>
       
-      <section className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+      <section className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
         <div>
-          {companyInfo.logoUrl && <img src={companyInfo.logoUrl} alt={`${companyInfo.name} Logo`} className="h-12 max-w-[200px] object-contain mb-2"/>}
+          {companyInfo.logoUrl && (
+            <img
+              src={companyInfo.logoUrl}
+              alt={`${companyInfo.name} Logo`}
+              className="h-12 max-w-[200px] object-contain mb-2"
+            />
+          )}
           <h3 className="font-semibold text-gray-500 mb-2">Company</h3>
-          <p className="text-gray-900">{companyInfo.name}</p>
-          <p className="text-gray-600 whitespace-pre-line">{companyInfo.address}</p>
+          <p className="text-gray-900 font-semibold break-words">{companyInfo.name}</p>
+          <p className="text-gray-600 whitespace-pre-line">{companyInfo.address || 'Address not provided'}</p>
         </div>
         <div className="text-left md:text-right">
           <h3 className="font-semibold text-gray-500 mb-2">Employee</h3>
-          <p className="text-gray-900 font-bold">{employeeName}</p>
-          <p className="text-gray-600">{position}</p>
+          <p className="text-gray-900 font-bold break-words">{employee.name}</p>
+          <p className="text-gray-600">{employee.position}</p>
+          <p className="text-gray-600">Employee ID: {employeeId}</p>
+          <p className="text-gray-600">ID Number: {employeeIdNumber}</p>
+          <p className="text-gray-600">Bank: {bankName}</p>
+          <p className="text-gray-600">Account: {bankAccount}</p>
           <p className="text-gray-600">Pay Period: {payPeriodStart} to {payPeriodEnd}</p>
         </div>
+      </section>
+
+      <section className="mb-6 bg-gray-50 p-4 rounded-lg">
+        <h3 className="font-semibold text-gray-500 mb-1">Employee Summary</h3>
+        <p className="text-sm text-gray-600">
+          Address on file: <span className="font-medium text-gray-800">{employeeAddress}</span>
+        </p>
       </section>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">

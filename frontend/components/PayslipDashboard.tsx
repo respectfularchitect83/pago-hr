@@ -14,11 +14,12 @@ interface PayslipDashboardProps {
   onLogout: () => void;
   onSendMessage: (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => Promise<void> | void;
   onUpdateMessageStatus: (messageId: string, status: 'read' | 'unread') => Promise<void> | void;
+  onDeleteMessage: (messageId: string) => Promise<void> | void;
 }
 
 export type View = 'list' | 'detail' | 'profile' | 'messages' | 'leave';
 
-const PayslipDashboard: React.FC<PayslipDashboardProps> = ({ employee, companyInfo, messages, onLogout, onSendMessage, onUpdateMessageStatus }) => {
+const PayslipDashboard: React.FC<PayslipDashboardProps> = ({ employee, companyInfo, messages, onLogout, onSendMessage, onUpdateMessageStatus, onDeleteMessage }) => {
   const [view, setView] = useState<View>('list');
   const [selectedPayslip, setSelectedPayslip] = useState<Payslip | null>(null);
 
@@ -39,7 +40,7 @@ const PayslipDashboard: React.FC<PayslipDashboardProps> = ({ employee, companyIn
   const renderContent = () => {
     switch(view) {
       case 'detail': 
-        return selectedPayslip ? <PayslipDetail payslip={selectedPayslip} employeeName={employee.name} position={employee.position} companyInfo={companyInfo} /> : null;
+        return selectedPayslip ? <PayslipDetail payslip={selectedPayslip} employee={employee} companyInfo={companyInfo} /> : null;
       case 'profile': 
         return <Profile employee={employee} />;
       case 'messages': 
@@ -48,10 +49,12 @@ const PayslipDashboard: React.FC<PayslipDashboardProps> = ({ employee, companyIn
                   messages={messages} 
                   onSendMessage={onSendMessage}
                   onUpdateMessageStatus={onUpdateMessageStatus}
+                  onDeleteMessage={onDeleteMessage}
                 />;
       case 'leave':
         return <LeaveApplicationView
                   employee={employee}
+                  companyInfo={companyInfo}
                   onSendMessage={onSendMessage}
                   onApplicationSent={() => setView('list')}
                 />
@@ -68,7 +71,7 @@ const PayslipDashboard: React.FC<PayslipDashboardProps> = ({ employee, companyIn
   };
   
   return (
-    <div className="container mx-auto max-w-3xl p-4 print:p-0 print:max-w-full">
+    <div className="mx-auto w-full max-w-4xl px-3 sm:px-4 lg:px-0 print:p-0 print:max-w-full">
         <div className="space-y-6 animate-fade-in">
         <DashboardHeader 
             view={view}

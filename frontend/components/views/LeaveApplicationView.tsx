@@ -1,16 +1,17 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Employee, Message, LeaveType } from '../../types';
-import { calculateWorkingDays } from '../../utils/leaveCalculations';
+import { Employee, Message, LeaveType, Company } from '../../types';
+import { calculateWorkingDays, calculateLeaveBalances } from '../../utils/leaveCalculations';
 
 interface LeaveApplicationViewProps {
     employee: Employee;
+    companyInfo: Company;
     onSendMessage: (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => Promise<void> | void;
     onApplicationSent: () => void;
 }
 
 const ALL_LEAVE_TYPES: LeaveType[] = ['Annual', 'Sick', 'Maternity', 'Paternity', 'Bereavement', 'Unpaid'];
 
-const LeaveApplicationView: React.FC<LeaveApplicationViewProps> = ({ employee, onSendMessage, onApplicationSent }) => {
+const LeaveApplicationView: React.FC<LeaveApplicationViewProps> = ({ employee, companyInfo, onSendMessage, onApplicationSent }) => {
     
     const availableLeaveTypes = useMemo(() => {
         if (employee.gender === 'Male') {
@@ -22,14 +23,24 @@ const LeaveApplicationView: React.FC<LeaveApplicationViewProps> = ({ employee, o
         return ALL_LEAVE_TYPES;
     }, [employee.gender]);
 
+    const leaveBalances = useMemo(() => calculateLeaveBalances(employee, companyInfo), [employee, companyInfo]);
+
     const [leaveDetails, setLeaveDetails] = useState({
         type: availableLeaveTypes[0],
         startDate: '',
         endDate: '',
         notes: '',
     });
+
+    const selectedBalance = leaveBalances[leaveDetails.type];
     const [workingDays, setWorkingDays] = useState(0);
     const [isSubmitted, setIsSubmitted] = useState(false);
+
+    useEffect(() => {
+        if (!availableLeaveTypes.includes(leaveDetails.type)) {
+            setLeaveDetails(prev => ({ ...prev, type: availableLeaveTypes[0] }));
+        }
+    }, [availableLeaveTypes, leaveDetails.type]);
 
     useEffect(() => {
         if (leaveDetails.startDate && leaveDetails.endDate) {
@@ -91,7 +102,7 @@ ${leaveDetails.notes || 'No reason provided.'}
     }
 
     return (
-        <div className="p-6 animate-fade-in">
+        <div className="p-4 sm:p-6 animate-fade-in">
              <h2 className="text-lg font-semibold mb-4 text-gray-800">Submit a Leave Request</h2>
              <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
@@ -105,6 +116,9 @@ ${leaveDetails.notes || 'No reason provided.'}
                     >
                         {availableLeaveTypes.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
+                    <p className="mt-1 text-xs text-gray-500">
+                        Available balance: <span className="font-semibold text-gray-700">{selectedBalance ? selectedBalance.available.toFixed(1) : '0.0'} days</span>
+                    </p>
                 </div>
                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
@@ -133,7 +147,7 @@ ${leaveDetails.notes || 'No reason provided.'}
                         />
                     </div>
                  </div>
-                 <div className="p-3 bg-gray-100 rounded-md text-center">
+                      <div className="p-3 bg-gray-100 rounded-md text-center">
                     <p className="text-sm font-medium text-gray-600">Total Working Days: <span className="text-lg font-bold text-gray-800">{workingDays}</span></p>
                  </div>
                  <div>

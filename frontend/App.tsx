@@ -267,6 +267,7 @@ const App: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [companyInfo, setCompanyInfo] = useState<Company>(defaultCompanyInfo);
   const [hrUsers, setHrUsers] = useState<HRUser[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [pendingEmployeeId, setPendingEmployeeId] = useState<string | null>(null);
   const [pendingEmployeeEmail, setPendingEmployeeEmail] = useState<string | null>(null);
@@ -279,6 +280,23 @@ const App: React.FC = () => {
 
     const authHeaders = { Authorization: `Bearer ${authToken}` };
     let cancelled = false;
+
+    const fetchCompanyInfo = async () => {
+      try {
+        const companyRes = await fetch(`${API_URL}/api/company`, { headers: authHeaders });
+        if (!companyRes.ok) {
+          throw new Error('Failed to fetch company info');
+        }
+        const companyData = await companyRes.json();
+        if (!cancelled) {
+          setCompanyInfo({ ...defaultCompanyInfo, ...companyData });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to fetch company info', error);
+        }
+      }
+    };
 
     const fetchMessages = async () => {
       try {
@@ -319,6 +337,7 @@ const App: React.FC = () => {
         setCurrentUser(mapped);
         setPendingEmployeeId(null);
         setPendingEmployeeEmail(null);
+        await fetchCompanyInfo();
         await fetchMessages();
       } catch (error) {
         if (!cancelled) {
@@ -378,20 +397,7 @@ const App: React.FC = () => {
         }
       }
 
-      try {
-        const companyRes = await fetch(`${API_URL}/api/company`, { headers: authHeaders });
-        if (!companyRes.ok) {
-          throw new Error('Failed to fetch company info');
-        }
-        const companyData = await companyRes.json();
-        if (!cancelled) {
-          setCompanyInfo({ ...defaultCompanyInfo, ...companyData });
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setCompanyInfo(defaultCompanyInfo);
-        }
-      }
+      await fetchCompanyInfo();
 
       try {
         const usersRes = await fetch(`${API_URL}/api/users`, { headers: authHeaders });
@@ -427,18 +433,20 @@ const App: React.FC = () => {
     if ('username' in currentUser) {
       void loadAdminData();
     } else if ('employeeId' in currentUser) {
-      if ('payslips' in currentUser) {
-        return;
+      if (!('payslips' in currentUser)) {
+        void loadEmployeeProfile();
+      } else {
+        void (async () => {
+          await fetchCompanyInfo();
+          await fetchMessages();
+        })();
       }
-      void loadEmployeeProfile();
     }
 
     return () => {
       cancelled = true;
     };
   }, [authToken, currentUser]);
-  const [messages, setMessages] = useState<Message[]>([]);
-
   React.useEffect(() => {
     if ((!pendingEmployeeId && !pendingEmployeeEmail) || employees.length === 0) {
       return;
@@ -993,14 +1001,15 @@ const App: React.FC = () => {
     }
     
   if (currentUser && 'payslips' in currentUser) {
-        return <PayslipDashboard 
-                    employee={currentUser} 
-                    companyInfo={companyInfo} 
-                    messages={messages}
-                    onLogout={handleLogout} 
-                    onSendMessage={handleSendMessage}
-                    onUpdateMessageStatus={handleUpdateMessageStatus}
-                />;
+    return <PayslipDashboard 
+          employee={currentUser} 
+          companyInfo={companyInfo} 
+          messages={messages}
+          onLogout={handleLogout} 
+          onSendMessage={handleSendMessage}
+          onUpdateMessageStatus={handleUpdateMessageStatus}
+          onDeleteMessage={handleDeleteMessage}
+        />;
     }
 
   if (currentUser && 'employeeId' in currentUser) {
@@ -1019,9 +1028,8 @@ const App: React.FC = () => {
         <main className="flex-grow">
           {renderContent()}
         </main>
-        <footer className="text-center p-4 mt-8 text-xs text-gray-500">
-            © {new Date().getFullYear()} PAGO Payroll Solutions | Created by The Developer<br />
-            © {new Date().getFullYear()} PAGO HR | Created by Martin Bosman<br />
+    <footer className="text-center p-4 mt-8 text-xs text-gray-500">
+      © {new Date().getFullYear()} PAGO HR | Created by Martin Bosman<br />
             Disclaimer: This is a BETA application.
         </footer>
     </div>

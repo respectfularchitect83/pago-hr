@@ -1,17 +1,19 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Employee, Message } from '../../types';
 import PlusIcon from '../icons/PlusIcon';
+import TrashIcon from '../icons/TrashIcon';
 
 interface MessagesViewProps {
     employee: Employee;
     messages: Message[];
     onSendMessage: (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => Promise<void> | void;
     onUpdateMessageStatus: (messageId: string, status: 'read' | 'unread') => Promise<void> | void;
+    onDeleteMessage?: (messageId: string) => Promise<void> | void;
 }
 
 type MessageTab = 'inbox' | 'sent';
 
-const MessagesView: React.FC<MessagesViewProps> = ({ employee, messages, onSendMessage, onUpdateMessageStatus }) => {
+const MessagesView: React.FC<MessagesViewProps> = ({ employee, messages, onSendMessage, onUpdateMessageStatus, onDeleteMessage }) => {
     const [activeTab, setActiveTab] = useState<MessageTab>('inbox');
     const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
     const [isComposing, setIsComposing] = useState(false);
@@ -79,10 +81,40 @@ const MessagesView: React.FC<MessagesViewProps> = ({ employee, messages, onSendM
 
     const messagesToDisplay = activeTab === 'inbox' ? inboxMessages : sentMessages;
 
+    const handleDeleteMessage = async (messageId: string) => {
+        if (!onDeleteMessage) {
+            return;
+        }
+        const confirmDelete = window.confirm('Delete this message? This cannot be undone.');
+        if (!confirmDelete) {
+            return;
+        }
+        try {
+            await Promise.resolve(onDeleteMessage(messageId));
+            if (selectedMessage?.id === messageId) {
+                setSelectedMessage(null);
+            }
+        } catch (error) {
+            console.error('Failed to delete message', error);
+            alert('Failed to delete message. Please try again.');
+        }
+    };
+
     if (selectedMessage) {
         return (
-            <div className="p-6 animate-fade-in">
-                <button onClick={() => setSelectedMessage(null)} className="text-sm font-semibold text-gray-700 mb-4">&larr; Back to {activeTab}</button>
+            <div className="p-4 sm:p-6 animate-fade-in">
+                <div className="flex items-center justify-between mb-4">
+                    <button onClick={() => setSelectedMessage(null)} className="text-sm font-semibold text-gray-700">&larr; Back to {activeTab}</button>
+                    {onDeleteMessage && (
+                        <button
+                            onClick={() => { void handleDeleteMessage(selectedMessage.id); }}
+                            className="flex items-center gap-1 text-sm font-semibold text-red-600 hover:text-red-700"
+                            type="button"
+                        >
+                            <TrashIcon className="h-4 w-4" /> Delete
+                        </button>
+                    )}
+                </div>
                 <div className="space-y-4">
                     <div className="flex items-center pb-4 border-b">
                         <img src={selectedMessage.senderPhotoUrl || 'https://i.pravatar.cc/150?u=hr'} alt={selectedMessage.senderName} className="h-12 w-12 rounded-full mr-4" />
@@ -101,7 +133,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ employee, messages, onSendM
 
     if (isComposing) {
          return (
-             <div className="p-6 animate-fade-in">
+             <div className="p-4 sm:p-6 animate-fade-in">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-semibold text-gray-800">New Message to HR</h3>
                     <button onClick={() => setIsComposing(false)} className="text-sm font-semibold text-gray-700">Cancel</button>
@@ -123,7 +155,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ employee, messages, onSendM
     }
     
     return (
-        <div className="p-6 animate-fade-in">
+        <div className="p-4 sm:p-6 animate-fade-in">
             <div className="flex justify-between items-center mb-4">
                 <div className="border-b border-gray-200">
                     <nav className="-mb-px flex space-x-6" aria-label="Tabs">
@@ -142,18 +174,47 @@ const MessagesView: React.FC<MessagesViewProps> = ({ employee, messages, onSendM
 
             <div className="space-y-2">
                 {messagesToDisplay.length > 0 ? messagesToDisplay.map(msg => (
-                    <button key={msg.id} onClick={() => handleSelectMessage(msg)} className="w-full flex items-start p-3 rounded-lg text-left transition-colors hover:bg-gray-50 border relative">
+                    <button
+                        key={msg.id}
+                        onClick={() => handleSelectMessage(msg)}
+                        className="w-full flex items-start gap-3 p-3 sm:p-4 rounded-lg text-left transition-colors hover:bg-gray-50 border relative"
+                    >
                         {activeTab === 'inbox' && msg.status === 'unread' && <span className="absolute top-3 left-1 h-2 w-2 bg-blue-500 rounded-full"></span>}
-                         <img src={msg.senderPhotoUrl || 'https://i.pravatar.cc/150?u=hr'} alt={msg.senderName} className="h-10 w-10 rounded-full mr-3 mt-1" />
-                         <div className="flex-grow overflow-hidden">
-                             <div className="flex justify-between items-baseline">
-                                <p className={`font-semibold truncate ${activeTab === 'inbox' && msg.status === 'unread' ? 'font-bold' : ''}`}>
-                                    {activeTab === 'inbox' ? msg.senderName : 'To: HR Admin'}
-                                </p>
-                                <p className="text-xs text-gray-500 flex-shrink-0">{timeSince(msg.timestamp)}</p>
+                        <img src={msg.senderPhotoUrl || 'https://i.pravatar.cc/150?u=hr'} alt={msg.senderName} className="h-10 w-10 rounded-full mt-1 flex-shrink-0" />
+                        <div className="flex-grow overflow-hidden">
+                            <div className="flex items-start justify-between gap-2">
+                                <div>
+                                    <p className={`font-semibold truncate ${activeTab === 'inbox' && msg.status === 'unread' ? 'font-bold' : ''}`}>
+                                        {activeTab === 'inbox' ? msg.senderName : 'To: HR Admin'}
+                                    </p>
+                                    <p className="text-sm text-gray-600 truncate">{msg.content.split('\n')[0]}</p>
+                                </div>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                    <p className="text-xs text-gray-500">{timeSince(msg.timestamp)}</p>
+                                    {onDeleteMessage && (
+                                        <span
+                                            role="button"
+                                            tabIndex={0}
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                event.preventDefault();
+                                                void handleDeleteMessage(msg.id);
+                                            }}
+                                            onKeyDown={(event) => {
+                                                if (event.key === 'Enter' || event.key === ' ') {
+                                                    event.preventDefault();
+                                                    event.stopPropagation();
+                                                    void handleDeleteMessage(msg.id);
+                                                }
+                                            }}
+                                            className="text-gray-400 hover:text-red-600 focus:outline-none focus-visible:text-red-600"
+                                        >
+                                            <TrashIcon className="h-4 w-4" />
+                                        </span>
+                                    )}
+                                </div>
                             </div>
-                            <p className="text-sm text-gray-600 truncate">{msg.content.split('\n')[0]}</p>
-                         </div>
+                        </div>
                     </button>
                 )) : (
                     <p className="text-center text-gray-500 py-12">No messages in your {activeTab}.</p>

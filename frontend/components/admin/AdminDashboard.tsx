@@ -1,6 +1,4 @@
-
-
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Employee, Company, HRUser, Message, Payslip } from '../../types';
 import AdminEmployeeList from './AdminEmployeeList';
 import AdminEmployeeDetail from './AdminEmployeeDetail';
@@ -83,6 +81,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [adminView, setAdminView] = useState<AdminView>('employees');
   const [employeeMode, setEmployeeMode] = useState<EmployeeMode>('list');
+
+    const unreadMessageCount = useMemo(
+      () => messages.filter(msg => msg.recipientId === 'hr' && msg.status === 'unread').length,
+      [messages]
+    );
 
   const handleSelectEmployee = (employee: Employee) => {
     setSelectedEmployee(employee);
@@ -249,13 +252,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </button>
              <button
               onClick={() => setAdminView('messages')}
-              className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
+              className={`relative whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
                 adminView === 'messages'
                   ? 'border-gray-800 text-gray-900'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
               Messages
+              {unreadMessageCount > 0 && (
+                <span className="ml-2 inline-flex items-center justify-center rounded-full bg-red-500 text-white text-xs px-1.5 py-0.5">
+                  {unreadMessageCount}
+                </span>
+              )}
             </button>
             <button
               onClick={() => setAdminView('reports')}
