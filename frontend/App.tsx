@@ -1089,16 +1089,67 @@ const App: React.FC = () => {
   }, []);
   
   // A bit of a hack to switch between login screens without a router
-  const [loginView, setLoginView] = useState<'employee' | 'admin' | 'register'>('employee');
+  const [loginView, setLoginView] = useState<'landing' | 'employee' | 'admin' | 'register'>('landing');
+  const [pendingSlug, setPendingSlug] = useState<string>('');
 
 
   const renderContent = () => {
     if (!currentUser) {
+        if (loginView === 'landing') {
+          return (
+            <div className="flex flex-col items-center justify-center min-h-screen py-10">
+              <div className="w-full max-w-md p-10 space-y-6 bg-white rounded-3xl shadow-lg text-center">
+                <h1 className="text-3xl font-bold text-gray-900">Welcome to PAGO HR</h1>
+                <p className="text-sm text-gray-600">
+                  Register your organisation or access an existing tenant workspace.
+                </p>
+                <button
+                  onClick={() => setLoginView('register')}
+                  className="w-full py-3 px-4 bg-gray-800 text-white font-semibold rounded-lg hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                >
+                  Register a company
+                </button>
+                <div className="space-y-3 pt-4">
+                  <p className="text-xs text-gray-500">Already onboarded? Enter your subdomain to continue.</p>
+                  <input
+                    type="text"
+                    value={pendingSlug}
+                    onChange={(event) => setPendingSlug(event.target.value)}
+                    placeholder="your-company"
+                    className="w-full px-4 py-3 text-sm text-center border-2 border-gray-300 rounded-lg focus:ring-gray-500 focus:border-gray-500"
+                  />
+                  <button
+                    onClick={() => {
+                      const sanitized = sanitizeTenantSlug(pendingSlug);
+                      if (!sanitized) {
+                        alert('Please enter a valid subdomain.');
+                        return;
+                      }
+                      const rootDomainOverride = import.meta.env.VITE_ROOT_APP_DOMAIN;
+                      const resolvedRootDomain = rootDomainOverride && rootDomainOverride.trim().length > 0
+                        ? rootDomainOverride.trim()
+                        : window.location.hostname.includes('.')
+                          ? window.location.hostname.split('.').slice(-2).join('.')
+                          : 'pago-hr.com';
+                      const target = resolvedRootDomain
+                        ? `https://${sanitized}.${resolvedRootDomain}`
+                        : `/tenant/${sanitized}`;
+                      window.location.href = target;
+                    }}
+                    className="w-full py-3 px-4 bg-white text-gray-800 font-semibold rounded-lg border border-gray-300 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                  >
+                    Go to tenant login
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        }
         if (loginView === 'register') {
           return (
             <TenantRegistration
               onRegister={handleTenantRegistration}
-              onSwitchToLogin={() => setLoginView('admin')}
+              onSwitchToLogin={() => setLoginView('landing')}
             />
           );
         }
