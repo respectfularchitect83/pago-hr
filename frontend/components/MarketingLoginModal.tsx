@@ -3,10 +3,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 interface MarketingLoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onEmployeeLogin: (employeeId: string, password: string) => Promise<boolean>;
-  onAdminLogin: (email: string, password: string) => Promise<boolean>;
+  onEmployeeLogin: (employeeId: string, password: string, tenantSlug?: string) => Promise<boolean>;
+  onAdminLogin: (email: string, password: string, tenantSlug?: string) => Promise<boolean>;
   onSignup: () => void;
   onUseClassicLogin: () => void;
+  onResolveTenantSlug?: (tenantSlug: string) => void;
   tenantSlug: string;
 }
 
@@ -17,6 +18,7 @@ const MarketingLoginModal: React.FC<MarketingLoginModalProps> = ({
   onAdminLogin,
   onSignup,
   onUseClassicLogin,
+  onResolveTenantSlug,
   tenantSlug,
 }) => {
   const [activeTab, setActiveTab] = useState<'employee' | 'admin'>('employee');
@@ -24,6 +26,8 @@ const MarketingLoginModal: React.FC<MarketingLoginModalProps> = ({
   const [employeePassword, setEmployeePassword] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
+  const requiresTenantInput = tenantSlug === 'default';
+  const [tenantInput, setTenantInput] = useState(requiresTenantInput ? '' : tenantSlug);
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -36,8 +40,14 @@ const MarketingLoginModal: React.FC<MarketingLoginModalProps> = ({
       setErrorMessage('');
       setIsSubmitting(false);
       setActiveTab('employee');
+      setTenantInput(tenantSlug === 'default' ? '' : tenantSlug);
+      return;
     }
-  }, [isOpen]);
+
+    if (tenantSlug !== 'default') {
+      setTenantInput(tenantSlug);
+    }
+  }, [isOpen, tenantSlug]);
 
   const headingId = useMemo(() => `marketing-login-modal-${Math.random().toString(36).slice(2, 8)}`, []);
 
@@ -51,13 +61,21 @@ const MarketingLoginModal: React.FC<MarketingLoginModalProps> = ({
     setIsSubmitting(true);
 
     try {
+      const resolvedTenantSlug = (requiresTenantInput ? tenantInput.trim() : tenantSlug.trim()).toLowerCase();
+      if (!resolvedTenantSlug) {
+        setErrorMessage('Add your workspace subdomain to continue.');
+        setIsSubmitting(false);
+        return;
+      }
+
       if (activeTab === 'employee') {
         if (!employeeId.trim() || !employeePassword) {
           setErrorMessage('Please provide your Employee ID and password.');
           setIsSubmitting(false);
           return;
         }
-        const success = await onEmployeeLogin(employeeId.trim(), employeePassword);
+        onResolveTenantSlug?.(resolvedTenantSlug);
+        const success = await onEmployeeLogin(employeeId.trim(), employeePassword, resolvedTenantSlug);
         if (!success) {
           setErrorMessage('Those credentials did not work. Please try again or reset with your HR team.');
           setIsSubmitting(false);
@@ -69,7 +87,8 @@ const MarketingLoginModal: React.FC<MarketingLoginModalProps> = ({
           setIsSubmitting(false);
           return;
         }
-        const success = await onAdminLogin(adminEmail.trim(), adminPassword);
+        onResolveTenantSlug?.(resolvedTenantSlug);
+        const success = await onAdminLogin(adminEmail.trim(), adminPassword, resolvedTenantSlug);
         if (!success) {
           setErrorMessage('We could not log you in. Double-check your admin details or try reset.');
           setIsSubmitting(false);
@@ -123,9 +142,6 @@ const MarketingLoginModal: React.FC<MarketingLoginModalProps> = ({
                 <p className="mt-1 text-xs text-gray-500">
                   Select the workspace type that matches your role.
                 </p>
-                <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-blue-100">
-                  Subdomain: {tenantSlug}
-                </p>
               </div>
               <button
                 onClick={onClose}
@@ -161,6 +177,34 @@ const MarketingLoginModal: React.FC<MarketingLoginModalProps> = ({
               >
                 Admin / HR
               </button>
+            </div>
+
+            <div className="mt-6">
+              <label className="block text-xs font-medium uppercase tracking-wide text-gray-400" htmlFor="tenant-slug">
+                Workspace subdomain
+              </label>
+              <input
+                id="tenant-slug"
+                value={tenantInput}
+                onChange={event => {
+                  if (!requiresTenantInput) {
+                    return;
+                  }
+                  setTenantInput(event.target.value);
+                }}
+                className={`mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none ${
+                  requiresTenantInput ? 'focus:border-white/40' : 'opacity-70'
+                }`}
+                placeholder="your-company"
+                autoComplete="off"
+                spellCheck={false}
+                disabled={!requiresTenantInput}
+              />
+              <p className="mt-2 text-[11px] uppercase tracking-[0.3em] text-gray-500">
+                {requiresTenantInput
+                  ? 'Enter the first part of the URL you normally use'
+                  : `You are signing into ${tenantSlug}`}
+              </p>
             </div>
 
             <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
@@ -233,7 +277,19 @@ const MarketingLoginModal: React.FC<MarketingLoginModalProps> = ({
             </form>
 
             <div className="mt-6 text-xs text-gray-500">
-              <button onClick={onUseClassicLogin} className="underline transition hover:text-white" type="button">
+              <button
+                onClick={() => {
+                  const resolvedTenantSlug = (requiresTenantInput ? tenantInput.trim() : tenantSlug.trim()).toLowerCase();
+                  if (!resolvedTenantSlug) {
+                    setErrorMessage('Add your workspace subdomain to continue.');
+                    return;
+                  }
+                  onResolveTenantSlug?.(resolvedTenantSlug);
+                  onUseClassicLogin();
+                }}
+                className="underline transition hover:text-white"
+                type="button"
+              >
                 Prefer the classic login page?
               </button>
             </div>

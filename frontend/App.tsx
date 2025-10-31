@@ -70,10 +70,14 @@ const resolveTenantSlug = (): string => {
 
 const TENANT_SLUG = resolveTenantSlug();
 
-const withTenantHeader = (headers: Record<string, string> = {}): Record<string, string> => ({
-  ...headers,
-  [TENANT_HEADER_NAME]: TENANT_SLUG,
-});
+const withTenantHeader = (headers: Record<string, string> = {}, tenantSlugOverride?: string): Record<string, string> => {
+  const normalized = sanitizeTenantSlug(tenantSlugOverride);
+  const slug = normalized || TENANT_SLUG;
+  return {
+    ...headers,
+    [TENANT_HEADER_NAME]: slug,
+  };
+};
 
 import React, { useState, useCallback } from 'react';
 import { Employee, Company, HRUser, Message, Payslip, LeaveRecord } from './types';
@@ -370,6 +374,7 @@ const App: React.FC = () => {
   const [pendingEmployeeEmail, setPendingEmployeeEmail] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<Employee | HRUser | null>(null);
   const [isMarketingLoginOpen, setIsMarketingLoginOpen] = useState(false);
+  const [resolvedTenantSlug, setResolvedTenantSlug] = useState<string>(TENANT_SLUG);
   const [isMarketingPreview, setIsMarketingPreview] = useState(false);
 
   React.useEffect(() => {
@@ -388,6 +393,12 @@ const App: React.FC = () => {
     }
   }, []);
 
+  const applyTenantHeader = React.useCallback(
+    (headers: Record<string, string> = {}, slugOverride?: string) =>
+      withTenantHeader(headers, slugOverride ?? resolvedTenantSlug),
+    [resolvedTenantSlug],
+  );
+
   // Update favicon so the browser tab reflects the active tenant.
   React.useEffect(() => {
     let cancelled = false;
@@ -395,7 +406,7 @@ const App: React.FC = () => {
     const loadPublicCompanyInfo = async () => {
       try {
         const response = await fetch(`${API_URL}/api/company/public-info`, {
-          headers: withTenantHeader(),
+          headers: applyTenantHeader(),
         });
 
         if (!response.ok) {
@@ -426,7 +437,7 @@ const App: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [applyTenantHeader]);
 
   React.useEffect(() => {
     if (typeof document === 'undefined') {
@@ -472,7 +483,7 @@ const App: React.FC = () => {
       return;
     }
 
-  const authHeaders = withTenantHeader({ Authorization: `Bearer ${authToken}` });
+  const authHeaders = applyTenantHeader({ Authorization: `Bearer ${authToken}` });
     let cancelled = false;
 
     const fetchCompanyInfo = async () => {
@@ -640,7 +651,7 @@ const App: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [authToken, currentUser]);
+  }, [authToken, currentUser, applyTenantHeader]);
   React.useEffect(() => {
     if ((!pendingEmployeeId && !pendingEmployeeEmail) || employees.length === 0) {
       return;
@@ -677,16 +688,20 @@ const App: React.FC = () => {
 
 
   // Employee login handler with password
-  const handleLoginSuccess = useCallback(async (employeeId: string, password: string): Promise<boolean> => {
+  const handleLoginSuccess = useCallback(async (employeeId: string, password: string, tenantSlugOverride?: string): Promise<boolean> => {
     try {
+      const effectiveSlug = tenantSlugOverride ? sanitizeTenantSlug(tenantSlugOverride) : resolvedTenantSlug;
       const res = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
-        headers: withTenantHeader({ 'Content-Type': 'application/json' }),
+  headers: applyTenantHeader({ 'Content-Type': 'application/json' }, effectiveSlug),
         body: JSON.stringify({ employeeId, password })
       });
       if (!res.ok) return false;
       const data = await res.json();
       if (data && data.user) {
+        if (effectiveSlug && effectiveSlug !== resolvedTenantSlug) {
+          setResolvedTenantSlug(effectiveSlug);
+        }
         if (data.token) {
           setAuthToken(data.token);
         }
@@ -706,20 +721,24 @@ const App: React.FC = () => {
     } catch {
       return false;
     }
-  }, []);
+  }, [applyTenantHeader, resolvedTenantSlug]);
 
   // Admin login handler with password
-  const handleAdminLoginSuccess = async (username: string, password: string): Promise<boolean> => {
+  const handleAdminLoginSuccess = useCallback(async (username: string, password: string, tenantSlugOverride?: string): Promise<boolean> => {
     try {
     const normalizedEmail = username.trim().toLowerCase();
+    const effectiveSlug = tenantSlugOverride ? sanitizeTenantSlug(tenantSlugOverride) : resolvedTenantSlug;
     const res = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
-        headers: withTenantHeader({ 'Content-Type': 'application/json' }),
+  headers: applyTenantHeader({ 'Content-Type': 'application/json' }, effectiveSlug),
         body: JSON.stringify({ email: normalizedEmail, password })
       });
       if (!res.ok) return false;
       const data = await res.json();
       if (data && data.user && data.user.role === 'admin') {
+        if (effectiveSlug && effectiveSlug !== resolvedTenantSlug) {
+          setResolvedTenantSlug(effectiveSlug);
+        }
         setPendingEmployeeId(null);
         setPendingEmployeeEmail(null);
         const mappedAdmin: HRUser = {
@@ -737,7 +756,7 @@ const App: React.FC = () => {
     } catch {
       return false;
     }
-  };
+  }, [applyTenantHeader, resolvedTenantSlug]);
 
   const handleLogout = useCallback(() => {
     setCurrentUser(null);
@@ -747,6 +766,7 @@ const App: React.FC = () => {
     setPendingEmployeeId(null);
     setPendingEmployeeEmail(null);
     setMessages([]);
+    setResolvedTenantSlug(TENANT_SLUG);
   }, []);
   
   const handleUpdateEmployee = async (updatedEmployee: Employee): Promise<Employee> => {
@@ -757,7 +777,7 @@ const App: React.FC = () => {
     const payload = mapEmployeeToApiPayload(updatedEmployee);
     const response = await fetch(`${API_URL}/api/employees/${updatedEmployee.id}`, {
         method: 'PUT',
-        headers: withTenantHeader({ 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` }),
+  headers: applyTenantHeader({ 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` }),
       body: JSON.stringify(payload),
     });
 
@@ -813,7 +833,7 @@ const App: React.FC = () => {
     const payload = mapEmployeeToApiPayload(newEmployeeData as Employee);
     const response = await fetch(`${API_URL}/api/employees`, {
         method: 'POST',
-        headers: withTenantHeader({ 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` }),
+  headers: applyTenantHeader({ 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` }),
       body: JSON.stringify(payload),
     });
 
@@ -835,7 +855,7 @@ const App: React.FC = () => {
 
     const res = await fetch(`${API_URL}/api/employees/${employeeId}`, {
         method: 'DELETE',
-        headers: withTenantHeader({ Authorization: `Bearer ${authToken}` }),
+  headers: applyTenantHeader({ Authorization: `Bearer ${authToken}` }),
     });
 
     if (!res.ok) {
@@ -873,7 +893,7 @@ const App: React.FC = () => {
     const payload = buildPayslipPayload(employeeId, newPayslip);
     const res = await fetch(`${API_URL}/api/payslips`, {
         method: 'POST',
-        headers: withTenantHeader({ 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` }),
+  headers: applyTenantHeader({ 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` }),
       body: JSON.stringify(payload),
     });
 
@@ -922,7 +942,7 @@ const App: React.FC = () => {
     const payload = buildPayslipPayload(employeeId, updatedPayslip);
     const res = await fetch(`${API_URL}/api/payslips/${updatedPayslip.id}`, {
         method: 'PUT',
-        headers: withTenantHeader({ 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` }),
+  headers: applyTenantHeader({ 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` }),
       body: JSON.stringify(payload),
     });
 
@@ -971,7 +991,7 @@ const App: React.FC = () => {
 
     const res = await fetch(`${API_URL}/api/payslips/${payslipId}`, {
         method: 'DELETE',
-        headers: withTenantHeader({ Authorization: `Bearer ${authToken}` }),
+  headers: applyTenantHeader({ Authorization: `Bearer ${authToken}` }),
     });
 
     if (!res.ok) {
@@ -998,7 +1018,7 @@ const App: React.FC = () => {
   if (!authToken) return;
   await fetch(`${API_URL}/api/company`, {
         method: 'PUT',
-        headers: withTenantHeader({ 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` }),
+  headers: applyTenantHeader({ 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` }),
       body: JSON.stringify(updatedCompanyInfo),
     });
     setCompanyInfo(updatedCompanyInfo);
@@ -1017,7 +1037,7 @@ const App: React.FC = () => {
     };
     const res = await fetch(`${API_URL}/api/users`, {
       method: 'POST',
-      headers: withTenantHeader({ 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` }),
+  headers: applyTenantHeader({ 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` }),
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -1044,7 +1064,7 @@ const App: React.FC = () => {
     }
     const res = await fetch(`${API_URL}/api/users/${updatedUser.id}`, {
       method: 'PUT',
-      headers: withTenantHeader({ 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` }),
+  headers: applyTenantHeader({ 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` }),
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -1061,7 +1081,7 @@ const App: React.FC = () => {
     if (!authToken) return;
     const res = await fetch(`${API_URL}/api/users/${userId}`, {
       method: 'DELETE',
-      headers: withTenantHeader({ Authorization: `Bearer ${authToken}` }),
+  headers: applyTenantHeader({ Authorization: `Bearer ${authToken}` }),
     });
     if (!res.ok) {
       const message = await extractErrorMessage(res);
@@ -1090,7 +1110,7 @@ const App: React.FC = () => {
     try {
       const response = await fetch(`${API_URL}/api/messages`, {
         method: 'POST',
-        headers: withTenantHeader({
+  headers: applyTenantHeader({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${authToken}`,
         }),
@@ -1109,7 +1129,7 @@ const App: React.FC = () => {
       console.error('Failed to send message', error);
       throw error instanceof Error ? error : new Error('Failed to send message');
     }
-  }, [authToken]);
+  }, [authToken, applyTenantHeader]);
 
   const handleUpdateMessageStatus = useCallback(async (messageId: string, status: 'read' | 'unread') => {
     if (!authToken) {
@@ -1119,7 +1139,7 @@ const App: React.FC = () => {
     try {
       const response = await fetch(`${API_URL}/api/messages/${messageId}/status`, {
         method: 'PATCH',
-        headers: withTenantHeader({
+  headers: applyTenantHeader({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${authToken}`,
         }),
@@ -1137,7 +1157,7 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('Failed to update message status', error);
     }
-  }, [authToken]);
+  }, [authToken, applyTenantHeader]);
 
   const handleDeleteMessage = useCallback(async (messageId: string) => {
     if (!authToken) {
@@ -1147,7 +1167,7 @@ const App: React.FC = () => {
     try {
       const response = await fetch(`${API_URL}/api/messages/${messageId}`, {
         method: 'DELETE',
-        headers: withTenantHeader({ Authorization: `Bearer ${authToken}` }),
+  headers: applyTenantHeader({ Authorization: `Bearer ${authToken}` }),
       });
 
       if (!response.ok) {
@@ -1160,7 +1180,7 @@ const App: React.FC = () => {
       console.error('Failed to delete message', error);
       throw error instanceof Error ? error : new Error('Failed to delete message');
     }
-  }, [authToken]);
+  }, [authToken, applyTenantHeader]);
   
   const handleTenantRegistration = useCallback(async (payload: TenantRegistrationPayload): Promise<TenantRegistrationResult> => {
     const sanitizedSlug = payload.slug ? sanitizeTenantSlug(payload.slug) : sanitizeTenantSlug(payload.companyName);
@@ -1193,7 +1213,7 @@ const App: React.FC = () => {
       adminEmail,
     };
   }, []);
-  
+
   // A bit of a hack to switch between login screens without a router
   const [loginView, setLoginView] = useState<'landing' | 'employee' | 'admin' | 'register'>('landing');
 
@@ -1210,12 +1230,23 @@ const App: React.FC = () => {
   const renderContent = () => {
     const rawLogo = companyInfo.logoUrl ?? '';
     const loginLogoUrl = rawLogo.trim().length > 0 ? rawLogo : undefined;
-    const isDefaultTenant = TENANT_SLUG === 'default';
+    const isDefaultTenant = resolvedTenantSlug === 'default';
 
     if (!currentUser) {
         if (loginView === 'landing') {
           if (isDefaultTenant && !isMarketingPreview) {
-            return <ComingSoonLanding contactEmail="martinbosman@me.com" />;
+            return (
+              <ComingSoonLanding
+                onSignIn={() => {
+                  setLoginView('landing');
+                  setIsMarketingLoginOpen(true);
+                }}
+                onSignUp={() => {
+                  setIsMarketingLoginOpen(false);
+                  setLoginView('register');
+                }}
+              />
+            );
           }
           return (
             <>
@@ -1233,7 +1264,13 @@ const App: React.FC = () => {
                   setIsMarketingLoginOpen(false);
                   setLoginView('admin');
                 }}
-                tenantSlug={TENANT_SLUG}
+                onResolveTenantSlug={slug => {
+                  const cleaned = sanitizeTenantSlug(slug);
+                  if (cleaned) {
+                    setResolvedTenantSlug(cleaned);
+                  }
+                }}
+                tenantSlug={resolvedTenantSlug}
               />
             </>
           );
@@ -1254,7 +1291,7 @@ const App: React.FC = () => {
                 onOpenCompanyRegistration={() => setLoginView('register')}
                 companyName={companyInfo.name}
                 companyLogoUrl={loginLogoUrl}
-                tenantSlug={TENANT_SLUG}
+                tenantSlug={resolvedTenantSlug}
               />
             );
         }
@@ -1265,7 +1302,7 @@ const App: React.FC = () => {
             onOpenCompanyRegistration={() => setLoginView('register')}
             companyName={companyInfo.name}
             companyLogoUrl={loginLogoUrl}
-            tenantSlug={TENANT_SLUG}
+            tenantSlug={resolvedTenantSlug}
           />
         );
     }
