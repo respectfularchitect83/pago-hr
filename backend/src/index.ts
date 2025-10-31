@@ -67,8 +67,15 @@ const corsOptions: cors.CorsOptions = {
 };
 
 app.use(cors(corsOptions));
-// Explicitly handle preflight OPTIONS requests for Express 5 compatible routing
-app.options('/:path*', cors(corsOptions));
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    cors(corsOptions)(req, res, () => {
+      res.sendStatus(204);
+    });
+    return;
+  }
+  next();
+});
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
