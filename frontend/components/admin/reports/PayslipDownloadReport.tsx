@@ -59,6 +59,9 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
   const [selectedPayslip, setSelectedPayslip] = useState<SelectedPayslipState | null>(null);
   const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({});
   const headerCheckboxRef = useRef<HTMLInputElement>(null);
+  const [bulkQueue, setBulkQueue] = useState<PayslipTableRow[]>([]);
+  const [bulkCurrent, setBulkCurrent] = useState<PayslipTableRow | null>(null);
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
 
   const { scopedEmployees, payslipRows } = useMemo(() => {
     const start = new Date(startDate);
@@ -125,6 +128,20 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
     headerCheckboxRef.current.indeterminate = selected > 0 && selected < total;
   }, [payslipRows, selectedRowIds]);
 
+  useEffect(() => {
+    if (!isBulkProcessing) {
+      return;
+    }
+    if (!bulkCurrent && bulkQueue.length > 0) {
+      const [next, ...rest] = bulkQueue;
+      setBulkCurrent(next);
+      setBulkQueue(rest);
+    }
+    if (!bulkCurrent && bulkQueue.length === 0) {
+      setIsBulkProcessing(false);
+    }
+  }, [isBulkProcessing, bulkCurrent, bulkQueue]);
+
   const scopeLabel = selectedEmployeeId !== 'all'
     ? scopedEmployees[0]?.name || 'Selected Employee'
     : selectedBranch !== 'all' ? `${selectedBranch} Branch` : 'All Employees';
@@ -179,6 +196,20 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
   ), [selectedRows, payslipRows]);
 
   const selectedCount = selectedRows.length;
+
+  const handleBulkDownloadPayslips = () => {
+    if (isBulkProcessing) {
+      return;
+    }
+    if (rowsForExport.length === 0) {
+      alert('No payslips available to download for the current filters.');
+      return;
+    }
+    const [first, ...rest] = rowsForExport;
+    setBulkQueue(rest);
+    setBulkCurrent(first);
+    setIsBulkProcessing(true);
+  };
 
   const handleDownloadCsv = () => {
     if (rowsForExport.length === 0) {
@@ -237,9 +268,17 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={handleBulkDownloadPayslips}
+            className="flex items-center px-3 py-2 bg-gray-800 text-white font-semibold rounded-lg hover:bg-gray-900 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={rowsForExport.length === 0 || isBulkProcessing}
+          >
+            <DownloadIcon />
+            <span className="ml-2">Download Selected Payslips</span>
+          </button>
+          <button
             onClick={handleDownloadPdf}
             className="flex items-center px-3 py-2 bg-gray-500 text-white font-semibold rounded-lg hover:bg-gray-600 text-sm"
-            disabled={payslipRows.length === 0}
+            disabled={rowsForExport.length === 0}
           >
             <DocumentTextIcon />
             <span className="ml-2">Download PDF</span>
@@ -247,7 +286,7 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
           <button
             onClick={handleDownloadCsv}
             className="flex items-center px-3 py-2 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 text-sm"
-            disabled={payslipRows.length === 0}
+            disabled={rowsForExport.length === 0}
           >
             <DownloadIcon />
             <span className="ml-2">Download CSV</span>
@@ -370,6 +409,20 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
               />
             </div>
           </div>
+        </div>
+      )}
+
+      {bulkCurrent && (
+        <div style={{ position: 'fixed', top: '-9999px', left: '-9999px', width: '1200px', pointerEvents: 'none' }}>
+          <PayslipDetail
+            payslip={bulkCurrent.payslip}
+            employee={bulkCurrent.employee}
+            companyInfo={companyInfo}
+            autoPreview
+            onAutoPreviewComplete={() => {
+              setBulkCurrent(null);
+            }}
+          />
         </div>
       )}
     </div>

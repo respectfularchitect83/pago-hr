@@ -1,21 +1,26 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Company, SupportedCountry, Employee, LeaveType } from '../../types';
+import { Company, SupportedCountry, Employee, LeaveType, HRUser } from '../../types';
 import EditableField from './EditableField';
 import { countryRegulations } from '../../data/regulations';
 import { convertToCSV, downloadCSV } from '../../utils/csvHelper';
 import DownloadIcon from '../icons/DownloadIcon';
 import PlusIcon from '../icons/PlusIcon';
 import TrashIcon from '../icons/TrashIcon';
+import HRUsersTab from './HRUsersTab';
 
 interface CompanySettingsProps {
     company: Company;
     onSave: (company: Company) => void;
     employees: Employee[];
+    hrUsers: HRUser[];
+    onAddHRUser: (newUser: Omit<HRUser, 'id'>) => void;
+    onUpdateHRUser: (user: HRUser) => void;
+    onDeleteHRUser: (userId: string) => void;
 }
 
 const LEAVE_TYPES: LeaveType[] = ['Annual', 'Sick', 'Maternity', 'Paternity', 'Bereavement'];
 
-const CompanySettings: React.FC<CompanySettingsProps> = ({ company, onSave, employees }) => {
+const CompanySettings: React.FC<CompanySettingsProps> = ({ company, onSave, employees, hrUsers, onAddHRUser, onUpdateHRUser, onDeleteHRUser }) => {
     const [localCompany, setLocalCompany] = useState<Company>(company);
     const [newBranch, setNewBranch] = useState('');
     const logoInputRef = useRef<HTMLInputElement>(null);
@@ -278,7 +283,7 @@ const CompanySettings: React.FC<CompanySettingsProps> = ({ company, onSave, empl
                 </div>
             </div>
 
-            <div className="pt-4">
+            <div className="pt-4 space-y-6">
                 <h3 className="text-lg font-semibold text-gray-700 mb-2">Data Management</h3>
                 <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-between mb-4">
                     <div>
@@ -292,6 +297,15 @@ const CompanySettings: React.FC<CompanySettingsProps> = ({ company, onSave, empl
                         <DownloadIcon />
                         <span className="ml-2">Download All Data (CSV)</span>
                     </button>
+                </div>
+
+                <div className="p-4 bg-white rounded-lg border border-gray-200">
+                    <HRUsersTab
+                        users={hrUsers}
+                        onAddUser={onAddHRUser}
+                        onUpdateUser={onUpdateHRUser}
+                        onDeleteUser={onDeleteHRUser}
+                    />
                 </div>
             </div>
         </div>

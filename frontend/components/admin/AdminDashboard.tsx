@@ -4,7 +4,6 @@ import AdminEmployeeList from './AdminEmployeeList';
 import AdminEmployeeDetail from './AdminEmployeeDetail';
 import LogoutIcon from '../icons/LogoutIcon';
 import CompanySettings from './CompanySettings';
-import HRUsersTab from './HRUsersTab';
 import ReportsTab from './ReportsTab';
 import LeaveTab from './LeaveTab';
 import HRMessagesTab from './HRMessagesTab';
@@ -31,7 +30,7 @@ interface AdminDashboardProps {
   onDeleteMessage: (messageId: string) => Promise<void> | void;
 }
 
-type AdminView = 'employees' | 'leave' | 'messages' | 'reports' | 'hrUsers' | 'settings';
+type AdminView = 'employees' | 'leave' | 'messages' | 'reports' | 'settings';
 type EmployeeMode = 'list' | 'edit' | 'add';
 
 const blankEmployee: Employee = {
@@ -71,10 +70,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     onUpdateCompanyInfo,
     onAddNewHRUser,
     onUpdateHRUser,
-  onCreatePayslip,
-  onUpdatePayslip,
-  onDeletePayslip,
-  onDeleteHRUser,
+    onCreatePayslip,
+    onUpdatePayslip,
+    onDeletePayslip,
+    onDeleteHRUser,
     onUpdateMessageStatus,
     onSendMessage,
     onDeleteMessage,
@@ -119,11 +118,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const renderContent = () => {
     if (adminView === 'settings') {
-      return <CompanySettings company={companyInfo} onSave={onUpdateCompanyInfo} employees={employees} />;
-    }
-
-    if (adminView === 'hrUsers') {
-      return <HRUsersTab users={hrUsers} onAddUser={onAddNewHRUser} onUpdateUser={onUpdateHRUser} onDeleteUser={onDeleteHRUser} />;
+      return (
+        <CompanySettings
+          company={companyInfo}
+          onSave={onUpdateCompanyInfo}
+          employees={employees}
+          hrUsers={hrUsers}
+          onAddHRUser={onAddNewHRUser}
+          onUpdateHRUser={onUpdateHRUser}
+          onDeleteHRUser={onDeleteHRUser}
+        />
+      );
     }
     
     if (adminView === 'reports') {
@@ -275,16 +280,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
               }`}
             >
               Reports
-            </button>
-            <button
-              onClick={() => { setAdminView('hrUsers'); handleBackToList(); }}
-              className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
-                adminView === 'hrUsers'
-                  ? 'border-gray-800 text-gray-900'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              HR Users
             </button>
             <button
               onClick={() => setAdminView('settings')}
