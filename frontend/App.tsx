@@ -83,6 +83,8 @@ import PayslipDashboard from './components/PayslipDashboard';
 import AdminLoginScreen from './components/admin/AdminLoginScreen';
 import AdminDashboard from './components/admin/AdminDashboard';
 import TenantRegistration from './components/TenantRegistration';
+import MarketingLanding from './components/MarketingLanding';
+import MarketingLoginModal from './components/MarketingLoginModal';
 type TenantRegistrationPayload = {
   companyName: string;
   slug?: string;
@@ -366,6 +368,8 @@ const App: React.FC = () => {
   const [pendingEmployeeId, setPendingEmployeeId] = useState<string | null>(null);
   const [pendingEmployeeEmail, setPendingEmployeeEmail] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<Employee | HRUser | null>(null);
+  const [isMarketingLoginOpen, setIsMarketingLoginOpen] = useState(false);
+  const [pendingSlug, setPendingSlug] = useState<string>('');
 
   // Update favicon so the browser tab reflects the active tenant.
   React.useEffect(() => {
@@ -647,6 +651,12 @@ const App: React.FC = () => {
       setPendingEmployeeEmail(null);
     }
   }, [pendingEmployeeId, pendingEmployeeEmail, employees]);
+
+  React.useEffect(() => {
+    if (currentUser) {
+      setIsMarketingLoginOpen(false);
+    }
+  }, [currentUser]);
 
 
   // Employee login handler with password
@@ -1166,15 +1176,54 @@ const App: React.FC = () => {
       adminEmail,
     };
   }, []);
+
+  const handleTenantLandingRedirect = useCallback(() => {
+    const fallbackSlug = sanitizeTenantSlug(pendingSlug || TENANT_SLUG);
+    if (!fallbackSlug) {
+      alert('Please enter a valid subdomain.');
+      return;
+    }
+
+    if (fallbackSlug === TENANT_SLUG) {
+      setIsMarketingLoginOpen(true);
+      return;
+    }
+
+    if (typeof window === 'undefined') {
+      console.warn('Tenant navigation is only available in the browser.');
+      return;
+    }
+
+    const rootDomainOverride = import.meta.env.VITE_ROOT_APP_DOMAIN;
+    const resolvedRootDomain = rootDomainOverride && rootDomainOverride.trim().length > 0
+      ? rootDomainOverride.trim()
+      : window.location.hostname.includes('.')
+        ? window.location.hostname.split('.').slice(-2).join('.')
+        : 'pago-hr.com';
+
+    const target = resolvedRootDomain
+      ? `https://${fallbackSlug}.${resolvedRootDomain}`
+      : `/tenant/${fallbackSlug}`;
+
+    window.location.href = target;
+  }, [pendingSlug]);
   
   // A bit of a hack to switch between login screens without a router
   const [loginView, setLoginView] = useState<'landing' | 'employee' | 'admin' | 'register'>('landing');
-  const [pendingSlug, setPendingSlug] = useState<string>('');
 
   React.useEffect(() => {
     if (TENANT_SLUG && TENANT_SLUG !== 'default') {
       setPendingSlug(TENANT_SLUG);
     }
+  }, []);
+
+  const openSignupFlow = useCallback(() => {
+    setIsMarketingLoginOpen(false);
+    setLoginView('register');
+  }, []);
+
+  const handleOpenMarketingLogin = useCallback(() => {
+    setIsMarketingLoginOpen(true);
   }, []);
 
 
@@ -1185,53 +1234,26 @@ const App: React.FC = () => {
     if (!currentUser) {
         if (loginView === 'landing') {
           return (
-            <div className="flex flex-col items-center justify-center min-h-screen py-10">
-              <div className="w-full max-w-md p-10 space-y-6 bg-white rounded-3xl shadow-lg text-center">
-                <h1 className="text-3xl font-bold text-gray-900">Welcome to PAGO HR</h1>
-                <button
-                  onClick={() => setLoginView('register')}
-                  className="w-full py-3 px-4 bg-gray-800 text-white font-semibold rounded-lg hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-                >
-                  Signup
-                </button>
-                <div className="space-y-3 pt-4">
-                  <p className="text-xs text-gray-500">Enter your subdomain to continue.</p>
-                  <input
-                    type="text"
-                    value={pendingSlug}
-                    onChange={(event) => setPendingSlug(event.target.value)}
-                    placeholder="your-company"
-                    className="w-full px-4 py-3 text-sm text-center border-2 border-gray-300 rounded-lg focus:ring-gray-500 focus:border-gray-500"
-                  />
-                  <button
-                    onClick={() => {
-                      const sanitized = sanitizeTenantSlug(pendingSlug || TENANT_SLUG);
-                      if (!sanitized) {
-                        alert('Please enter a valid subdomain.');
-                        return;
-                      }
-                      if (sanitized === TENANT_SLUG) {
-                        setLoginView('admin');
-                        return;
-                      }
-                      const rootDomainOverride = import.meta.env.VITE_ROOT_APP_DOMAIN;
-                      const resolvedRootDomain = rootDomainOverride && rootDomainOverride.trim().length > 0
-                        ? rootDomainOverride.trim()
-                        : window.location.hostname.includes('.')
-                          ? window.location.hostname.split('.').slice(-2).join('.')
-                          : 'pago-hr.com';
-                      const target = resolvedRootDomain
-                        ? `https://${sanitized}.${resolvedRootDomain}`
-                        : `/tenant/${sanitized}`;
-                      window.location.href = target;
-                    }}
-                    className="w-full py-3 px-4 bg-white text-gray-800 font-semibold rounded-lg border border-gray-300 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-                  >
-                    login
-                  </button>
-                </div>
-              </div>
-            </div>
+            <>
+              <MarketingLanding
+                onRequestSignup={openSignupFlow}
+                onRequestLogin={handleOpenMarketingLogin}
+                onPendingSlugChange={setPendingSlug}
+                onNavigateToTenant={handleTenantLandingRedirect}
+                pendingSlug={pendingSlug}
+              />
+              <MarketingLoginModal
+                isOpen={isMarketingLoginOpen}
+                onClose={() => setIsMarketingLoginOpen(false)}
+                onEmployeeLogin={handleLoginSuccess}
+                onAdminLogin={handleAdminLoginSuccess}
+                onSignup={openSignupFlow}
+                onUseClassicLogin={() => {
+                  setIsMarketingLoginOpen(false);
+                  setLoginView('admin');
+                }}
+              />
+            </>
           );
         }
         if (loginView === 'register') {
