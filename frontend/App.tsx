@@ -89,7 +89,6 @@ import AdminDashboard from './components/admin/AdminDashboard';
 import TenantRegistration from './components/TenantRegistration';
 import MarketingLanding from './components/MarketingLanding';
 import MarketingLoginModal from './components/MarketingLoginModal';
-import ComingSoonLanding from './components/ComingSoonLanding';
 type TenantRegistrationPayload = {
   companyName: string;
   slug?: string;
@@ -375,23 +374,6 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<Employee | HRUser | null>(null);
   const [isMarketingLoginOpen, setIsMarketingLoginOpen] = useState(false);
   const [resolvedTenantSlug, setResolvedTenantSlug] = useState<string>(TENANT_SLUG);
-  const [isMarketingPreview, setIsMarketingPreview] = useState(false);
-
-  React.useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const previewParam = params.get('preview')?.toLowerCase();
-      if (previewParam === 'marketing') {
-        setIsMarketingPreview(true);
-      }
-    } catch (error) {
-      console.warn('Failed to parse preview flag', error);
-    }
-  }, []);
 
   const applyTenantHeader = React.useCallback(
     (headers: Record<string, string> = {}, slugOverride?: string) =>
@@ -1230,24 +1212,9 @@ const App: React.FC = () => {
   const renderContent = () => {
     const rawLogo = companyInfo.logoUrl ?? '';
     const loginLogoUrl = rawLogo.trim().length > 0 ? rawLogo : undefined;
-    const isDefaultTenant = resolvedTenantSlug === 'default';
 
     if (!currentUser) {
         if (loginView === 'landing') {
-          if (isDefaultTenant && !isMarketingPreview) {
-            return (
-              <ComingSoonLanding
-                onSignIn={() => {
-                  setLoginView('landing');
-                  setIsMarketingLoginOpen(true);
-                }}
-                onSignUp={() => {
-                  setIsMarketingLoginOpen(false);
-                  setLoginView('register');
-                }}
-              />
-            );
-          }
           return (
             <>
               <MarketingLanding
