@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import pool from '../config/db';
 import { AuthRequest } from '../middleware/auth';
 import logger from '../utils/logger';
+import { TenantRequest } from '../middleware/tenant';
 
 type EarningsInput = { description?: string; amount?: number | string; taxable?: boolean };
 type DeductionInput = { description?: string; amount?: number | string };
@@ -66,15 +67,15 @@ export const mapPayslipRow = (row: any) => {
   };
 };
 
-const findEmployeeWithUser = async (employeeId: string | number) => {
+const findEmployeeWithUser = async (employeeId: string | number, companyId: number) => {
   const idValue = Number(employeeId);
   if (!Number.isFinite(idValue)) {
     return null;
   }
 
   const employeeResult = await pool.query(
-    'SELECT id, email, employeeid, firstname, lastname FROM employees WHERE id = $1',
-    [idValue]
+    'SELECT id, email, employeeid, firstname, lastname FROM employees WHERE id = $1 AND company_id = $2',
+    [idValue, companyId]
   );
 
   if (employeeResult.rows.length === 0) {
@@ -86,20 +87,28 @@ const findEmployeeWithUser = async (employeeId: string | number) => {
     return { employee, userId: null };
   }
 
-  const userResult = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [employee.email]);
+  const userResult = await pool.query(
+    'SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND company_id = $2 LIMIT 1',
+    [employee.email, companyId]
+  );
   const userId = userResult.rows[0]?.id ?? null;
   return { employee, userId };
 };
 
-export const listPayslips = async (req: Request, res: Response) => {
+export const listPayslips = async (req: TenantRequest, res: Response) => {
   try {
+    const companyId = req.tenant?.id;
+    if (!companyId) {
+      return res.status(400).json({ error: 'Tenant context missing' });
+    }
+
     const { employeeId } = req.query;
 
-    const params: any[] = [];
-    let query = 'SELECT * FROM payslips';
+    const params: any[] = [companyId];
+    let query = 'SELECT * FROM payslips WHERE company_id = $1';
 
     if (employeeId) {
-      query += ' WHERE employee_id = $1';
+      query += ' AND employee_id = $2';
       params.push(employeeId);
     }
 
@@ -115,6 +124,11 @@ export const listPayslips = async (req: Request, res: Response) => {
 
 export const createPayslip = async (req: AuthRequest, res: Response) => {
   try {
+    const companyId = req.tenant?.id;
+    if (!companyId) {
+      return res.status(400).json({ error: 'Tenant context missing' });
+    }
+
     const {
       employeeId,
       payPeriodStart,
@@ -131,7 +145,7 @@ export const createPayslip = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'employeeId is required' });
     }
 
-    const employeeWithUser = await findEmployeeWithUser(employeeId);
+    const employeeWithUser = await findEmployeeWithUser(employeeId, companyId);
     if (!employeeWithUser) {
       return res.status(404).json({ error: 'Employee not found' });
     }
@@ -162,6 +176,7 @@ export const createPayslip = async (req: AuthRequest, res: Response) => {
 
     const insertResult = await pool.query(
       `INSERT INTO payslips (
+         company_id,
          employee_id,
          user_id,
          period_start,
@@ -179,9 +194,10 @@ export const createPayslip = async (req: AuthRequest, res: Response) => {
          double_overtime_hours
        ) VALUES (
          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-         $12::jsonb, $13::jsonb, $14, $15
+         $12, $13::jsonb, $14::jsonb, $15, $16
        ) RETURNING *`,
       [
+        companyId,
         employeeWithUser.employee.id,
         employeeWithUser.userId,
         payPeriodStart,
@@ -207,10 +223,15 @@ export const createPayslip = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const getPayslip = async (req: Request, res: Response) => {
+export const getPayslip = async (req: TenantRequest, res: Response) => {
   try {
+    const companyId = req.tenant?.id;
+    if (!companyId) {
+      return res.status(400).json({ error: 'Tenant context missing' });
+    }
+
     const { id } = req.params;
-    const result = await pool.query('SELECT * FROM payslips WHERE id = $1', [id]);
+    const result = await pool.query('SELECT * FROM payslips WHERE id = $1 AND company_id = $2', [id, companyId]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Payslip not found' });
     }
@@ -222,8 +243,13 @@ export const getPayslip = async (req: Request, res: Response) => {
   }
 };
 
-export const updatePayslip = async (req: Request, res: Response) => {
+export const updatePayslip = async (req: AuthRequest, res: Response) => {
   try {
+    const companyId = req.tenant?.id;
+    if (!companyId) {
+      return res.status(400).json({ error: 'Tenant context missing' });
+    }
+
     const { id } = req.params;
     const {
       payPeriodStart,
@@ -236,7 +262,7 @@ export const updatePayslip = async (req: Request, res: Response) => {
       status,
     } = req.body;
 
-    const existingResult = await pool.query('SELECT * FROM payslips WHERE id = $1', [id]);
+    const existingResult = await pool.query('SELECT * FROM payslips WHERE id = $1 AND company_id = $2', [id, companyId]);
     if (existingResult.rows.length === 0) {
       return res.status(404).json({ error: 'Payslip not found' });
     }
@@ -277,7 +303,7 @@ export const updatePayslip = async (req: Request, res: Response) => {
          normal_overtime_hours = $12,
          double_overtime_hours = $13,
          updated_at = NOW()
-       WHERE id = $14
+       WHERE id = $14 AND company_id = $15
        RETURNING *`,
       [
         payPeriodStart ?? existingResult.rows[0].period_start,
@@ -294,6 +320,7 @@ export const updatePayslip = async (req: Request, res: Response) => {
         Number(normalOvertimeHours) || 0,
         Number(doubleOvertimeHours) || 0,
         id,
+        companyId,
       ]
     );
 
@@ -304,10 +331,15 @@ export const updatePayslip = async (req: Request, res: Response) => {
   }
 };
 
-export const deletePayslip = async (req: Request, res: Response) => {
+export const deletePayslip = async (req: AuthRequest, res: Response) => {
   try {
+    const companyId = req.tenant?.id;
+    if (!companyId) {
+      return res.status(400).json({ error: 'Tenant context missing' });
+    }
+
     const { id } = req.params;
-    const result = await pool.query('DELETE FROM payslips WHERE id = $1 RETURNING *', [id]);
+    const result = await pool.query('DELETE FROM payslips WHERE id = $1 AND company_id = $2 RETURNING *', [id, companyId]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Payslip not found' });
     }

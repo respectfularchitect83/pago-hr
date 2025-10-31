@@ -2,10 +2,78 @@
 interface ImportMeta {
   readonly env: {
     VITE_API_URL: string;
+    VITE_TENANT_SLUG?: string;
+    VITE_ROOT_APP_DOMAIN?: string;
+    VITE_DEFAULT_TENANT_SLUG?: string;
     [key: string]: any;
   };
 }
 const API_URL = import.meta.env.VITE_API_URL;
+const TENANT_HEADER_NAME = 'x-company-slug';
+
+const sanitizeTenantSlug = (value: string | undefined | null): string => {
+  if (!value) {
+    return '';
+  }
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/^-+/, '')
+    .replace(/-+$/, '');
+};
+
+// Determine which tenant the frontend should target in multi-tenant deployments.
+const resolveTenantSlug = (): string => {
+  const envSlug = sanitizeTenantSlug(import.meta.env.VITE_TENANT_SLUG);
+  if (envSlug) {
+    return envSlug;
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const querySlug = sanitizeTenantSlug(params.get('company'));
+      if (querySlug) {
+        return querySlug;
+      }
+
+      const host = window.location.hostname.toLowerCase();
+      const rootDomainRaw = import.meta.env.VITE_ROOT_APP_DOMAIN as string | undefined;
+      const rootDomain = rootDomainRaw ? rootDomainRaw.toLowerCase().trim() : '';
+      if (rootDomain && host.endsWith(`.${rootDomain}`)) {
+        const withoutDomain = host.slice(0, host.length - rootDomain.length - 1);
+        if (withoutDomain) {
+          const [subdomain] = withoutDomain.split('.');
+          const subdomainSlug = sanitizeTenantSlug(subdomain);
+          if (subdomainSlug) {
+            return subdomainSlug;
+          }
+        }
+      }
+
+      if (host && host !== 'localhost' && host !== '127.0.0.1') {
+        const [subdomain] = host.split('.');
+        const hostSlug = sanitizeTenantSlug(subdomain);
+        if (hostSlug) {
+          return hostSlug;
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to resolve tenant from location', error);
+    }
+  }
+
+  const fallback = sanitizeTenantSlug(import.meta.env.VITE_DEFAULT_TENANT_SLUG) || 'default';
+  return fallback;
+};
+
+const TENANT_SLUG = resolveTenantSlug();
+
+const withTenantHeader = (headers: Record<string, string> = {}): Record<string, string> => ({
+  ...headers,
+  [TENANT_HEADER_NAME]: TENANT_SLUG,
+});
 
 import React, { useState, useCallback } from 'react';
 import { Employee, Company, HRUser, Message, Payslip, LeaveRecord } from './types';
@@ -289,12 +357,12 @@ const App: React.FC = () => {
       return;
     }
 
-    const authHeaders = { Authorization: `Bearer ${authToken}` };
+  const authHeaders = withTenantHeader({ Authorization: `Bearer ${authToken}` });
     let cancelled = false;
 
     const fetchCompanyInfo = async () => {
       try {
-        const companyRes = await fetch(`${API_URL}/api/company`, { headers: authHeaders });
+  const companyRes = await fetch(`${API_URL}/api/company`, { headers: authHeaders });
         if (!companyRes.ok) {
           throw new Error('Failed to fetch company info');
         }
@@ -311,7 +379,7 @@ const App: React.FC = () => {
 
     const fetchMessages = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/messages`, { headers: authHeaders });
+  const response = await fetch(`${API_URL}/api/messages`, { headers: authHeaders });
         if (!response.ok) {
           const message = await extractErrorMessage(response);
           throw new Error(message || 'Failed to load messages');
@@ -334,7 +402,7 @@ const App: React.FC = () => {
 
     const loadEmployeeProfile = async () => {
       try {
-        const res = await fetch(`${API_URL}/api/employees/self`, { headers: authHeaders });
+  const res = await fetch(`${API_URL}/api/employees/self`, { headers: authHeaders });
         if (!res.ok) {
           const message = await extractErrorMessage(res);
           throw new Error(message || 'Failed to load profile');
@@ -492,7 +560,7 @@ const App: React.FC = () => {
     try {
       const res = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: withTenantHeader({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ employeeId, password })
       });
       if (!res.ok) return false;
@@ -524,7 +592,7 @@ const App: React.FC = () => {
     try {
   const res = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: withTenantHeader({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ email: username, password })
       });
       if (!res.ok) return false;
@@ -567,8 +635,8 @@ const App: React.FC = () => {
 
     const payload = mapEmployeeToApiPayload(updatedEmployee);
     const response = await fetch(`${API_URL}/api/employees/${updatedEmployee.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        method: 'PUT',
+        headers: withTenantHeader({ 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` }),
       body: JSON.stringify(payload),
     });
 
@@ -623,8 +691,8 @@ const App: React.FC = () => {
 
     const payload = mapEmployeeToApiPayload(newEmployeeData as Employee);
     const response = await fetch(`${API_URL}/api/employees`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        method: 'POST',
+        headers: withTenantHeader({ 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` }),
       body: JSON.stringify(payload),
     });
 
@@ -645,8 +713,8 @@ const App: React.FC = () => {
     }
 
     const res = await fetch(`${API_URL}/api/employees/${employeeId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${authToken}` },
+        method: 'DELETE',
+        headers: withTenantHeader({ Authorization: `Bearer ${authToken}` }),
     });
 
     if (!res.ok) {
@@ -683,8 +751,8 @@ const App: React.FC = () => {
 
     const payload = buildPayslipPayload(employeeId, newPayslip);
     const res = await fetch(`${API_URL}/api/payslips`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        method: 'POST',
+        headers: withTenantHeader({ 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` }),
       body: JSON.stringify(payload),
     });
 
@@ -732,8 +800,8 @@ const App: React.FC = () => {
 
     const payload = buildPayslipPayload(employeeId, updatedPayslip);
     const res = await fetch(`${API_URL}/api/payslips/${updatedPayslip.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        method: 'PUT',
+        headers: withTenantHeader({ 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` }),
       body: JSON.stringify(payload),
     });
 
@@ -781,8 +849,8 @@ const App: React.FC = () => {
     }
 
     const res = await fetch(`${API_URL}/api/payslips/${payslipId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${authToken}` },
+        method: 'DELETE',
+        headers: withTenantHeader({ Authorization: `Bearer ${authToken}` }),
     });
 
     if (!res.ok) {
@@ -808,8 +876,8 @@ const App: React.FC = () => {
   const handleUpdateCompanyInfo = async (updatedCompanyInfo: Company) => {
   if (!authToken) return;
   await fetch(`${API_URL}/api/company`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        method: 'PUT',
+        headers: withTenantHeader({ 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` }),
       body: JSON.stringify(updatedCompanyInfo),
     });
     setCompanyInfo(updatedCompanyInfo);
@@ -828,7 +896,7 @@ const App: React.FC = () => {
     };
     const res = await fetch(`${API_URL}/api/users`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+      headers: withTenantHeader({ 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` }),
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -842,7 +910,7 @@ const App: React.FC = () => {
   };
 
   const handleUpdateHRUser = async (updatedUser: HRUser) => {
-  if (!authToken) return;
+    if (!authToken) return;
     const payload: Record<string, any> = {
       email: updatedUser.username,
       role: updatedUser.role ?? 'hr',
@@ -855,7 +923,7 @@ const App: React.FC = () => {
     }
     const res = await fetch(`${API_URL}/api/users/${updatedUser.id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+      headers: withTenantHeader({ 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` }),
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -869,10 +937,10 @@ const App: React.FC = () => {
   };
 
   const handleDeleteHRUser = async (userId: string) => {
-  if (!authToken) return;
+    if (!authToken) return;
     const res = await fetch(`${API_URL}/api/users/${userId}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${authToken}` },
+      headers: withTenantHeader({ Authorization: `Bearer ${authToken}` }),
     });
     if (!res.ok) {
       const message = await extractErrorMessage(res);
@@ -901,10 +969,10 @@ const App: React.FC = () => {
     try {
       const response = await fetch(`${API_URL}/api/messages`, {
         method: 'POST',
-        headers: {
+        headers: withTenantHeader({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${authToken}`,
-        },
+        }),
         body: JSON.stringify(payload),
       });
 
@@ -930,10 +998,10 @@ const App: React.FC = () => {
     try {
       const response = await fetch(`${API_URL}/api/messages/${messageId}/status`, {
         method: 'PATCH',
-        headers: {
+        headers: withTenantHeader({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${authToken}`,
-        },
+        }),
         body: JSON.stringify({ status }),
       });
 
@@ -958,7 +1026,7 @@ const App: React.FC = () => {
     try {
       const response = await fetch(`${API_URL}/api/messages/${messageId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${authToken}` },
+        headers: withTenantHeader({ Authorization: `Bearer ${authToken}` }),
       });
 
       if (!response.ok) {

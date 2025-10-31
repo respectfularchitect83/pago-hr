@@ -1,13 +1,22 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import pool from '../config/db';
 import bcrypt from 'bcrypt';
 import { AuthRequest } from '../middleware/auth';
 import logger from '../utils/logger';
+import { TenantRequest } from '../middleware/tenant';
 
 // List all users (HR, admin, employees)
-export const listUsers = async (req: Request, res: Response) => {
+export const listUsers = async (req: TenantRequest, res: Response) => {
   try {
-  const result = await pool.query('SELECT id, email, role, first_name, last_name, employee_id, department, position, join_date, photo_url, created_at, updated_at FROM users');
+    const companyId = req.tenant?.id;
+    if (!companyId) {
+      return res.status(400).json({ error: 'Tenant context missing' });
+    }
+
+    const result = await pool.query(
+      'SELECT id, email, role, first_name, last_name, employee_id, department, position, join_date, photo_url, created_at, updated_at FROM users WHERE company_id = $1',
+      [companyId]
+    );
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch users' });
@@ -15,8 +24,13 @@ export const listUsers = async (req: Request, res: Response) => {
 };
 
 // Create a new user (HR, admin, employee)
-export const createUser = async (req: Request, res: Response) => {
+export const createUser = async (req: AuthRequest, res: Response) => {
   try {
+    const companyId = req.tenant?.id;
+    if (!companyId) {
+      return res.status(400).json({ error: 'Tenant context missing' });
+    }
+
     const {
       email,
       username,
@@ -51,8 +65,8 @@ export const createUser = async (req: Request, res: Response) => {
     const resolvedLastName = last_name || lastName || '';
 
     const result = await pool.query(
-      `INSERT INTO users (email, password, role, first_name, last_name, employee_id, department, position, join_date, photo_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      `INSERT INTO users (email, password, role, first_name, last_name, employee_id, department, position, join_date, photo_url, company_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
       [
         emailSource,
         hashedPassword,
@@ -64,6 +78,7 @@ export const createUser = async (req: Request, res: Response) => {
         position || null,
         join_date || joinDate || null,
         photo_url || photoUrl || null,
+        companyId,
       ]
     );
     const { password: _password, ...user } = result.rows[0];
@@ -77,10 +92,18 @@ export const createUser = async (req: Request, res: Response) => {
 };
 
 // Get a user by id
-export const getUser = async (req: Request, res: Response) => {
+export const getUser = async (req: TenantRequest, res: Response) => {
   try {
+    const companyId = req.tenant?.id;
+    if (!companyId) {
+      return res.status(400).json({ error: 'Tenant context missing' });
+    }
+
     const { id } = req.params;
-  const result = await pool.query('SELECT id, email, role, first_name, last_name, employee_id, department, position, join_date, photo_url, created_at, updated_at FROM users WHERE id = $1', [id]);
+    const result = await pool.query(
+      'SELECT id, email, role, first_name, last_name, employee_id, department, position, join_date, photo_url, created_at, updated_at FROM users WHERE id = $1 AND company_id = $2',
+      [id, companyId]
+    );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -91,8 +114,13 @@ export const getUser = async (req: Request, res: Response) => {
 };
 
 // Update a user by id
-export const updateUser = async (req: Request, res: Response) => {
+export const updateUser = async (req: AuthRequest, res: Response) => {
   try {
+    const companyId = req.tenant?.id;
+    if (!companyId) {
+      return res.status(400).json({ error: 'Tenant context missing' });
+    }
+
     const { id } = req.params;
     const {
       email,
@@ -176,9 +204,10 @@ export const updateUser = async (req: Request, res: Response) => {
     }
 
     values.push(id);
+    values.push(companyId);
 
     const result = await pool.query(
-      `UPDATE users SET ${updates.join(', ')} WHERE id=$${index} RETURNING id, email, role, first_name, last_name, employee_id, department, position, join_date, photo_url, created_at, updated_at`,
+      `UPDATE users SET ${updates.join(', ')} WHERE id=$${index} AND company_id=$${index + 1} RETURNING id, email, role, first_name, last_name, employee_id, department, position, join_date, photo_url, created_at, updated_at`,
       values
     );
     if (result.rows.length === 0) {
@@ -193,8 +222,13 @@ export const updateUser = async (req: Request, res: Response) => {
 // Delete a user by id
 export const deleteUser = async (req: AuthRequest, res: Response) => {
   try {
+    const companyId = req.tenant?.id;
+    if (!companyId) {
+      return res.status(400).json({ error: 'Tenant context missing' });
+    }
+
     const { id } = req.params;
-    const targetResult = await pool.query('SELECT id, role FROM users WHERE id = $1', [id]);
+    const targetResult = await pool.query('SELECT id, role FROM users WHERE id = $1 AND company_id = $2', [id, companyId]);
     if (targetResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -213,12 +247,12 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      await client.query('UPDATE leave_requests SET approved_by = NULL WHERE approved_by = $1', [id]);
-      await client.query('DELETE FROM leave_requests WHERE user_id = $1', [id]);
-      await client.query('DELETE FROM leave_balances WHERE user_id = $1', [id]);
-      await client.query('DELETE FROM messages WHERE sender_id = $1 OR recipient_id = $1', [id]);
-      await client.query('UPDATE payslips SET user_id = NULL WHERE user_id = $1', [id]);
-      await client.query('DELETE FROM users WHERE id = $1', [id]);
+      await client.query('UPDATE leave_requests SET approved_by = NULL WHERE approved_by = $1 AND company_id = $2', [id, companyId]);
+      await client.query('DELETE FROM leave_requests WHERE user_id = $1 AND company_id = $2', [id, companyId]);
+      await client.query('DELETE FROM leave_balances WHERE user_id = $1 AND company_id = $2', [id, companyId]);
+      await client.query('DELETE FROM messages WHERE company_id = $1 AND (sender_id = $2 OR recipient_id = $2)', [companyId, id]);
+      await client.query('UPDATE payslips SET user_id = NULL WHERE user_id = $1 AND company_id = $2', [id, companyId]);
+      await client.query('DELETE FROM users WHERE id = $1 AND company_id = $2', [id, companyId]);
       await client.query('COMMIT');
       res.json({ message: 'User deleted' });
     } catch (err) {

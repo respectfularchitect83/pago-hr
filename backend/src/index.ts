@@ -12,6 +12,9 @@ import payslipRoutes from './routes/payslips';
 import leaveRoutes from './routes/leave';
 import companyRoutes from './routes/company';
 import messageRoutes from './routes/messages';
+import tenantRoutes from './routes/tenants';
+import userRoutes from './routes/users';
+import { tenantResolver } from './middleware/tenant';
 import ensureLatestSchema from './db/ensureLatestSchema';
 
 // Load environment variables
@@ -67,7 +70,9 @@ app.get('/health', (req, res) => {
 });
 
 // Routes
-import userRoutes from './routes/users';
+app.use('/api/tenants', tenantRoutes);
+app.use('/api', tenantResolver);
+
 app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/users', userRoutes);

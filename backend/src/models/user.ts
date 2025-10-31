@@ -16,10 +16,11 @@ export interface User {
   created_at: Date;
   updated_at: Date;
   photo_url?: string;
+  company_id: number;
 }
 
-export async function createUser(userData: Partial<User>): Promise<User> {
-  const { email, password, role, first_name, last_name, ...rest } = userData;
+export async function createUser(userData: Partial<User> & { company_id: number }): Promise<User> {
+  const { email, password, role, first_name, last_name, company_id, ...rest } = userData;
   
   // Hash password
   const salt = await bcrypt.genSalt(10);
@@ -28,42 +29,57 @@ export async function createUser(userData: Partial<User>): Promise<User> {
   const result = await pool.query(
     `INSERT INTO users (
       email, password, role, first_name, last_name,
-      employee_id, department, position, join_date, photo_url
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
+      employee_id, department, position, join_date, photo_url, company_id
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
     RETURNING *`,
     [
       email, hashedPassword, role, first_name, last_name,
-      rest.employee_id, rest.department, rest.position, rest.join_date, rest.photo_url
+      rest.employee_id, rest.department, rest.position, rest.join_date, rest.photo_url, company_id
     ]
   );
   
   return result.rows[0];
 }
 
-export async function findUserByEmail(email: string): Promise<User | null> {
-  const result = await pool.query(
-    'SELECT * FROM users WHERE email = $1',
-    [email]
-  );
+export async function findUserByEmail(email: string, companyId?: number): Promise<User | null> {
+  const params: any[] = [email];
+  let query = 'SELECT * FROM users WHERE email = $1';
+
+  if (companyId) {
+    params.push(companyId);
+    query += ' AND company_id = $2';
+  }
+
+  const result = await pool.query(query, params);
   
   return result.rows[0] || null;
 }
 
-export async function findUserById(id: number): Promise<User | null> {
-  const result = await pool.query(
-    'SELECT * FROM users WHERE id = $1',
-    [id]
-  );
-  
+export async function findUserByEmployeeId(employeeId: string, companyId?: number): Promise<User | null> {
+  const params: any[] = [employeeId];
+  let query = 'SELECT * FROM users WHERE employee_id = $1';
+
+  if (companyId) {
+    params.push(companyId);
+    query += ' AND company_id = $2';
+  }
+
+  const result = await pool.query(query, params);
+
   return result.rows[0] || null;
 }
 
-export async function findUserByEmployeeId(employeeId: string): Promise<User | null> {
-  const result = await pool.query(
-    'SELECT * FROM users WHERE employee_id = $1',
-    [employeeId]
-  );
+export async function findUserById(id: number, companyId?: number): Promise<User | null> {
+  const params: any[] = [id];
+  let query = 'SELECT * FROM users WHERE id = $1';
 
+  if (companyId) {
+    params.push(companyId);
+    query += ' AND company_id = $2';
+  }
+
+  const result = await pool.query(query, params);
+  
   return result.rows[0] || null;
 }
 

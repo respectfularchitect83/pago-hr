@@ -1,8 +1,9 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { findUserById } from '../models/user';
+import { TenantRequest } from './tenant';
 
-export interface AuthRequest extends Request {
+export interface AuthRequest extends TenantRequest {
   user?: any;
 }
 
@@ -15,10 +16,23 @@ export const auth = async (req: AuthRequest, res: Response, next: NextFunction) 
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET!);
-    const user = await findUserById((decoded as any).id);
+    const payload = decoded as { id: number; role: string; companyId?: number };
+
+    const tenantCompanyId = req.tenant?.id;
+    const tokenCompanyId = payload.companyId;
+
+    if (tenantCompanyId && tokenCompanyId && tenantCompanyId !== tokenCompanyId) {
+      return res.status(403).json({ error: 'Token does not belong to this company' });
+    }
+
+    const user = await findUserById(payload.id, tenantCompanyId ?? tokenCompanyId);
 
     if (!user) {
       throw new Error();
+    }
+
+    if (tenantCompanyId && user.company_id !== tenantCompanyId) {
+      return res.status(403).json({ error: 'Access denied for this company' });
     }
 
     req.user = user;

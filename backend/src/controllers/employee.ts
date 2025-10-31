@@ -1,21 +1,35 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import pool from '../config/db';
 import bcrypt from 'bcrypt';
 import logger from '../utils/logger';
 import { AuthRequest } from '../middleware/auth';
 import { mapPayslipRow } from './payslip';
+import { TenantRequest } from '../middleware/tenant';
 
-export const listEmployees = async (req: Request, res: Response) => {
+export const listEmployees = async (req: TenantRequest, res: Response) => {
   try {
-    const result = await pool.query('SELECT * FROM employees');
+    const companyId = req.tenant?.id;
+    if (!companyId) {
+      return res.status(400).json({ error: 'Tenant context missing' });
+    }
+
+    const result = await pool.query(
+      'SELECT * FROM employees WHERE company_id = $1 ORDER BY firstname ASC, lastname ASC',
+      [companyId]
+    );
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch employees' });
   }
 };
 
-export const createEmployee = async (req: Request, res: Response) => {
+export const createEmployee = async (req: AuthRequest, res: Response) => {
   try {
+    const companyId = req.tenant?.id;
+    if (!companyId) {
+      return res.status(400).json({ error: 'Tenant context missing' });
+    }
+
     const {
       employeeid,
       firstname,
@@ -79,6 +93,7 @@ export const createEmployee = async (req: Request, res: Response) => {
       const emailToPersist = emailLower || null;
       const result = await client.query(
         `INSERT INTO employees (
+            company_id,
             employeeid,
             firstname,
             lastname,
@@ -102,12 +117,13 @@ export const createEmployee = async (req: Request, res: Response) => {
             leave_records
           )
           VALUES (
-            $1, $2, $3, $4, $5, $6, $7,
-            $8, $9, $10, $11, $12, $13, $14::jsonb,
-            $15, $16, $17, $18, $19, $20, $21::jsonb
+            $1, $2, $3, $4, $5, $6, $7, $8,
+            $9, $10, $11, $12, $13, $14, $15::jsonb,
+            $16, $17, $18, $19, $20, $21, $22::jsonb
           )
           RETURNING *`,
         [
+          companyId,
           employeeid,
           firstname,
           lastname,
@@ -135,7 +151,19 @@ export const createEmployee = async (req: Request, res: Response) => {
       if (emailToPersist) {
         let passwordForUpsert = hashedPassword;
         if (!passwordForUpsert) {
-          const existingUser = await client.query('SELECT password FROM users WHERE email = $1', [emailToPersist]);
+          const existingUser = await client.query(
+            'SELECT password, company_id FROM users WHERE email = $1',
+            [emailToPersist]
+          );
+
+          if (
+            existingUser.rows.length > 0 &&
+            existingUser.rows[0].company_id !== companyId
+          ) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ error: 'Email already associated with another company' });
+          }
+
           passwordForUpsert = existingUser.rows[0]?.password || null;
         }
 
@@ -145,8 +173,8 @@ export const createEmployee = async (req: Request, res: Response) => {
         }
 
         await client.query(
-          `INSERT INTO users (email, password, role, first_name, last_name, employee_id, department, position, join_date, photo_url)
-           VALUES ($1, $2, 'employee', $3, $4, $5, $6, $7, $8, $9)
+          `INSERT INTO users (email, password, role, first_name, last_name, employee_id, department, position, join_date, photo_url, company_id)
+           VALUES ($1, $2, 'employee', $3, $4, $5, $6, $7, $8, $9, $10)
            ON CONFLICT (email) DO UPDATE
              SET password = COALESCE(EXCLUDED.password, users.password),
                  first_name = EXCLUDED.first_name,
@@ -155,7 +183,8 @@ export const createEmployee = async (req: Request, res: Response) => {
                  department = EXCLUDED.department,
                  position = EXCLUDED.position,
                  join_date = COALESCE(EXCLUDED.join_date, users.join_date),
-                 photo_url = COALESCE(EXCLUDED.photo_url, users.photo_url)
+                 photo_url = COALESCE(EXCLUDED.photo_url, users.photo_url),
+                 company_id = EXCLUDED.company_id
           `,
           [
             emailToPersist,
@@ -167,6 +196,7 @@ export const createEmployee = async (req: Request, res: Response) => {
             position,
             joinDate,
             photo_url || null,
+            companyId,
           ]
         );
       }
@@ -185,10 +215,15 @@ export const createEmployee = async (req: Request, res: Response) => {
   }
 };
 
-export const getEmployee = async (req: Request, res: Response) => {
+export const getEmployee = async (req: TenantRequest, res: Response) => {
   try {
+    const companyId = req.tenant?.id;
+    if (!companyId) {
+      return res.status(400).json({ error: 'Tenant context missing' });
+    }
+
     const { id } = req.params;
-    const result = await pool.query('SELECT * FROM employees WHERE id = $1', [id]);
+    const result = await pool.query('SELECT * FROM employees WHERE id = $1 AND company_id = $2', [id, companyId]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Employee not found' });
     }
@@ -201,6 +236,7 @@ export const getEmployee = async (req: Request, res: Response) => {
 export const getSelfProfile = async (req: AuthRequest, res: Response) => {
   try {
     const authUser = req.user;
+    const companyId = req.tenant?.id;
     if (!authUser) {
       return res.status(401).json({ error: 'Please authenticate' });
     }
@@ -212,12 +248,18 @@ export const getSelfProfile = async (req: AuthRequest, res: Response) => {
     let employeeRow: any | null = null;
 
     if (authUser.employee_id) {
-      const byEmployeeId = await pool.query('SELECT * FROM employees WHERE employeeid = $1 LIMIT 1', [authUser.employee_id]);
+      const byEmployeeId = await pool.query(
+        'SELECT * FROM employees WHERE employeeid = $1 AND company_id = $2 LIMIT 1',
+        [authUser.employee_id, companyId]
+      );
       employeeRow = byEmployeeId.rows[0] ?? null;
     }
 
     if (!employeeRow && authUser.email) {
-      const byEmail = await pool.query('SELECT * FROM employees WHERE LOWER(email) = LOWER($1) LIMIT 1', [authUser.email]);
+      const byEmail = await pool.query(
+        'SELECT * FROM employees WHERE LOWER(email) = LOWER($1) AND company_id = $2 LIMIT 1',
+        [authUser.email, companyId]
+      );
       employeeRow = byEmail.rows[0] ?? null;
     }
 
@@ -225,13 +267,17 @@ export const getSelfProfile = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Employee profile not found' });
     }
 
+    if (companyId && employeeRow.company_id !== companyId) {
+      return res.status(404).json({ error: 'Employee profile not found' });
+    }
+
     const payslipsResult = await pool.query(
       `SELECT *
          FROM payslips
-        WHERE employee_id = $1
-           OR user_id = $2
+        WHERE company_id = $1
+          AND (employee_id = $2 OR user_id = $3)
         ORDER BY payment_date DESC NULLS LAST, created_at DESC`,
-      [employeeRow.id, authUser.id]
+      [companyId, employeeRow.id, authUser.id]
     );
 
     const payslips = payslipsResult.rows.map(mapPayslipRow);
@@ -249,8 +295,13 @@ export const getSelfProfile = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const updateEmployee = async (req: Request, res: Response) => {
+export const updateEmployee = async (req: AuthRequest, res: Response) => {
   try {
+    const companyId = req.tenant?.id;
+    if (!companyId) {
+      return res.status(400).json({ error: 'Tenant context missing' });
+    }
+
     const { id } = req.params;
     const {
       employeeid,
@@ -311,7 +362,7 @@ export const updateEmployee = async (req: Request, res: Response) => {
     try {
       await client.query('BEGIN');
 
-      const existingResult = await client.query('SELECT * FROM employees WHERE id = $1', [id]);
+      const existingResult = await client.query('SELECT * FROM employees WHERE id = $1 AND company_id = $2', [id, companyId]);
       if (existingResult.rows.length === 0) {
         await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Employee not found' });
@@ -344,7 +395,7 @@ export const updateEmployee = async (req: Request, res: Response) => {
         photo_url=$20,
         leave_records=$21::jsonb,
         updated_at=NOW()
-      WHERE id=$22
+      WHERE id=$22 AND company_id=$23
       RETURNING *`,
         [
           employeeid,
@@ -369,6 +420,7 @@ export const updateEmployee = async (req: Request, res: Response) => {
           photo_url || null,
           normalizedLeaveRecords,
           id,
+          companyId,
         ]
       );
 
@@ -382,7 +434,16 @@ export const updateEmployee = async (req: Request, res: Response) => {
 
         let passwordForUpsert = hashedPassword;
         if (!passwordForUpsert) {
-          const existingUser = await client.query('SELECT password FROM users WHERE email = $1', [targetEmail]);
+          const existingUser = await client.query('SELECT password, company_id FROM users WHERE email = $1', [targetEmail]);
+
+          if (
+            existingUser.rows.length > 0 &&
+            existingUser.rows[0].company_id !== companyId
+          ) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ error: 'Email already associated with another company' });
+          }
+
           passwordForUpsert = existingUser.rows[0]?.password || null;
         }
 
@@ -390,8 +451,8 @@ export const updateEmployee = async (req: Request, res: Response) => {
           logger.warn('Skipping user upsert due to missing password', { employeeId: employeeid, email: targetEmail });
         } else {
         await client.query(
-          `INSERT INTO users (email, password, role, first_name, last_name, employee_id, department, position, join_date, photo_url)
-           VALUES ($1, $2, 'employee', $3, $4, $5, $6, $7, $8, $9)
+          `INSERT INTO users (email, password, role, first_name, last_name, employee_id, department, position, join_date, photo_url, company_id)
+           VALUES ($1, $2, 'employee', $3, $4, $5, $6, $7, $8, $9, $10)
            ON CONFLICT (email) DO UPDATE
              SET password = COALESCE(EXCLUDED.password, users.password),
                  first_name = EXCLUDED.first_name,
@@ -400,7 +461,8 @@ export const updateEmployee = async (req: Request, res: Response) => {
                  department = EXCLUDED.department,
                  position = EXCLUDED.position,
                  join_date = COALESCE(EXCLUDED.join_date, users.join_date),
-                 photo_url = COALESCE(EXCLUDED.photo_url, users.photo_url)
+                 photo_url = COALESCE(EXCLUDED.photo_url, users.photo_url),
+                 company_id = EXCLUDED.company_id
           `,
           [
             targetEmail,
@@ -412,12 +474,13 @@ export const updateEmployee = async (req: Request, res: Response) => {
             position || updatedEmployee.position || existingEmployee.position,
             joinDate,
             photo_url || updatedEmployee.photo_url || existingEmployee.photo_url || null,
+            companyId,
           ]
         );
 
         const previousEmail = existingEmployee.email ? existingEmployee.email.toLowerCase() : null;
         if (previousEmail && previousEmail !== targetEmail) {
-          await client.query('DELETE FROM users WHERE email = $1', [previousEmail]);
+          await client.query('DELETE FROM users WHERE email = $1 AND company_id = $2', [previousEmail, companyId]);
         }
         }
       }
@@ -436,13 +499,24 @@ export const updateEmployee = async (req: Request, res: Response) => {
   }
 };
 
-export const deleteEmployee = async (req: Request, res: Response) => {
+export const deleteEmployee = async (req: AuthRequest, res: Response) => {
   try {
+    const companyId = req.tenant?.id;
+    if (!companyId) {
+      return res.status(400).json({ error: 'Tenant context missing' });
+    }
+
     const { id } = req.params;
-    const result = await pool.query('DELETE FROM employees WHERE id = $1 RETURNING *', [id]);
+    const result = await pool.query('DELETE FROM employees WHERE id = $1 AND company_id = $2 RETURNING *', [id, companyId]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Employee not found' });
     }
+
+    const deletedEmployee = result.rows[0];
+    if (deletedEmployee?.email) {
+      await pool.query('DELETE FROM users WHERE email = $1 AND company_id = $2', [deletedEmployee.email.toLowerCase(), companyId]);
+    }
+
     res.json({ message: 'Employee deleted' });
   } catch (err) {
     logger.error('Failed to delete employee', { error: err instanceof Error ? err.message : err });

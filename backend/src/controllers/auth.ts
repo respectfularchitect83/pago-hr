@@ -1,14 +1,23 @@
-
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import jwt from 'jsonwebtoken';
+import { TenantRequest } from '../middleware/tenant';
 import { User, createUser, findUserByEmail, findUserByEmployeeId, validatePassword } from '../models/user';
 
-export const register = async (req: Request, res: Response) => {
+export const register = async (req: TenantRequest, res: Response) => {
   try {
     const { email, password, firstName, lastName, role } = req.body;
+    const companyId = req.tenant?.id;
+
+    if (!companyId) {
+      return res.status(400).json({ error: 'Tenant context is missing' });
+    }
+
+    if (!email || !password || !firstName || !lastName) {
+      return res.status(400).json({ error: 'Email, password, first name and last name are required' });
+    }
 
     // Check if user already exists
-    const existingUser = await findUserByEmail(email);
+    const existingUser = await findUserByEmail(email, companyId);
     if (existingUser) {
       return res.status(400).json({ error: 'Email already registered' });
     }
@@ -19,11 +28,12 @@ export const register = async (req: Request, res: Response) => {
       password,
       first_name: firstName,
       last_name: lastName,
-      role: role || 'employee'
+      role: role || 'employee',
+      company_id: companyId,
     });
 
     // Generate token
-    const jwtPayload = { id: user.id, role: user.role };
+    const jwtPayload = { id: user.id, role: user.role, companyId };
     const jwtSecret = process.env.JWT_SECRET!;
     let token: string;
     const expiresIn = process.env.JWT_EXPIRES_IN;
@@ -48,6 +58,7 @@ export const register = async (req: Request, res: Response) => {
         lastName: user.last_name,
         role: user.role,
         photoUrl: user.photo_url,
+        companyId: user.company_id,
       },
       token
     });
@@ -57,11 +68,12 @@ export const register = async (req: Request, res: Response) => {
   }
 };
 
-export const login = async (req: Request, res: Response) => {
+export const login = async (req: TenantRequest, res: Response) => {
   try {
     // Debug: log the login request body
     console.log('LOGIN REQUEST BODY:', req.body);
     const { email, employeeId, password } = req.body;
+    const companyId = req.tenant?.id;
 
     if (!email && !employeeId) {
       return res.status(400).json({ error: 'Email or employee ID is required' });
@@ -70,10 +82,10 @@ export const login = async (req: Request, res: Response) => {
     // Find user by email first, then by employee ID if provided
     let user: User | null = null;
     if (email) {
-      user = await findUserByEmail(email);
+      user = await findUserByEmail(email, companyId);
     }
     if (!user && employeeId) {
-      user = await findUserByEmployeeId(employeeId);
+      user = await findUserByEmployeeId(employeeId, companyId);
     }
     console.log('USER FROM DB:', user);
     if (!user) {
@@ -88,7 +100,7 @@ export const login = async (req: Request, res: Response) => {
     }
 
     // Generate token
-    const loginPayload = { id: user.id, role: user.role };
+    const loginPayload = { id: user.id, role: user.role, companyId: user.company_id };
     const loginSecret = process.env.JWT_SECRET!;
     let token: string;
     const loginExpiresIn = process.env.JWT_EXPIRES_IN;
@@ -116,6 +128,7 @@ export const login = async (req: Request, res: Response) => {
         department: user.department,
         position: user.position,
         photoUrl: user.photo_url,
+        companyId: user.company_id,
       },
       token
     });
@@ -125,7 +138,7 @@ export const login = async (req: Request, res: Response) => {
   }
 };
 
-export const me = async (req: Request, res: Response) => {
+export const me = async (req: TenantRequest, res: Response) => {
   try {
     // @ts-ignore
     const user = req.user;
@@ -140,6 +153,7 @@ export const me = async (req: Request, res: Response) => {
       position: user.position,
       joinDate: user.join_date,
       photoUrl: user.photo_url,
+      companyId: user.company_id,
     });
   } catch (error) {
     console.error('Profile error:', error);

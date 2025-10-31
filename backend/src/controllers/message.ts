@@ -96,7 +96,7 @@ const mapMessageRow = (row: any): MessageResponse => {
   return mapped;
 };
 
-const findEmployeeByIdentifier = async (identifier: string) => {
+const findEmployeeByIdentifier = async (identifier: string, companyId: number) => {
   if (!identifier) {
     return null;
   }
@@ -108,18 +108,18 @@ const findEmployeeByIdentifier = async (identifier: string) => {
 
   const numericId = Number(trimmed);
   if (!Number.isNaN(numericId)) {
-    const byId = await pool.query('SELECT * FROM employees WHERE id = $1 LIMIT 1', [numericId]);
+    const byId = await pool.query('SELECT * FROM employees WHERE id = $1 AND company_id = $2 LIMIT 1', [numericId, companyId]);
     if (byId.rows[0]) {
       return byId.rows[0];
     }
   }
 
-  const byEmployeeId = await pool.query('SELECT * FROM employees WHERE employeeid = $1 LIMIT 1', [trimmed]);
+  const byEmployeeId = await pool.query('SELECT * FROM employees WHERE employeeid = $1 AND company_id = $2 LIMIT 1', [trimmed, companyId]);
   return byEmployeeId.rows[0] ?? null;
 };
 
-const fetchMessageById = async (messageId: number): Promise<MessageResponse | null> => {
-  const result = await pool.query(`${MESSAGE_SELECT_BASE} WHERE m.id = $1`, [messageId]);
+const fetchMessageById = async (messageId: number, companyId: number): Promise<MessageResponse | null> => {
+  const result = await pool.query(`${MESSAGE_SELECT_BASE} WHERE m.id = $1 AND m.company_id = $2`, [messageId, companyId]);
   if (result.rows.length === 0) {
     return null;
   }
@@ -129,16 +129,25 @@ const fetchMessageById = async (messageId: number): Promise<MessageResponse | nu
 export const listMessages = async (req: AuthRequest, res: Response) => {
   try {
     const authUser = req.user;
+    const companyId = req.tenant?.id;
     if (!authUser) {
       return res.status(401).json({ error: 'Please authenticate' });
     }
 
-    const filterClauses: string[] = [];
-    const params: any[] = [];
+    if (!companyId) {
+      return res.status(400).json({ error: 'Tenant context missing' });
+    }
+
+    const filterClauses: string[] = ['m.company_id = $1'];
+    const params: any[] = [companyId];
+
+    const addParam = (value: any) => {
+      params.push(value);
+      return params.length;
+    };
 
     if (authUser.role === 'employee') {
-      const idx = params.length + 1;
-      params.push(authUser.id);
+      const idx = addParam(authUser.id);
       filterClauses.push(`(m.sender_id = $${idx} OR m.recipient_id = $${idx})`);
     }
 
@@ -148,13 +157,11 @@ export const listMessages = async (req: AuthRequest, res: Response) => {
       const orParts: string[] = [];
       const numericId = Number(employeeIdFilter);
       if (!Number.isNaN(numericId)) {
-        const numericIdx = params.length + 1;
-        params.push(numericId);
+        const numericIdx = addParam(numericId);
         orParts.push(`se.id = $${numericIdx}`);
         orParts.push(`re.id = $${numericIdx}`);
       }
-      const stringIdx = params.length + 1;
-      params.push(employeeIdFilter);
+      const stringIdx = addParam(employeeIdFilter);
       orParts.push(`se.employeeid = $${stringIdx}`);
       orParts.push(`re.employeeid = $${stringIdx}`);
       if (orParts.length > 0) {
@@ -177,8 +184,13 @@ export const listMessages = async (req: AuthRequest, res: Response) => {
 export const createMessage = async (req: AuthRequest, res: Response) => {
   try {
     const authUser = req.user;
+    const companyId = req.tenant?.id;
     if (!authUser) {
       return res.status(401).json({ error: 'Please authenticate' });
+    }
+
+    if (!companyId) {
+      return res.status(400).json({ error: 'Tenant context missing' });
     }
 
     const { content, recipientId } = req.body as { content?: string; recipientId?: string };
@@ -194,8 +206,10 @@ export const createMessage = async (req: AuthRequest, res: Response) => {
         `SELECT id
            FROM users
           WHERE role IN ('admin', 'hr')
+            AND company_id = $1
           ORDER BY CASE WHEN role = 'admin' THEN 0 ELSE 1 END, id ASC
-          LIMIT 1`
+          LIMIT 1`,
+        [companyId]
       );
 
       if (hrResult.rows.length === 0) {
@@ -208,12 +222,12 @@ export const createMessage = async (req: AuthRequest, res: Response) => {
         return res.status(400).json({ error: 'recipientId is required when messaging an employee' });
       }
 
-      const employee = await findEmployeeByIdentifier(String(recipientId));
+      const employee = await findEmployeeByIdentifier(String(recipientId), companyId);
       if (!employee) {
         return res.status(404).json({ error: 'Employee not found' });
       }
 
-      const employeeUser = await findUserByEmployeeId(employee.employeeid);
+      const employeeUser = await findUserByEmployeeId(employee.employeeid, companyId);
       if (!employeeUser) {
         return res.status(400).json({ error: 'Employee does not have portal access yet' });
       }
@@ -224,10 +238,10 @@ export const createMessage = async (req: AuthRequest, res: Response) => {
     }
 
     const insertResult = await pool.query(
-      `INSERT INTO messages (sender_id, recipient_id, content, is_read)
-       VALUES ($1, $2, $3, FALSE)
+      `INSERT INTO messages (company_id, sender_id, recipient_id, content, is_read)
+       VALUES ($1, $2, $3, $4, FALSE)
        RETURNING id`,
-      [authUser.id, recipientUserId, trimmedContent]
+      [companyId, authUser.id, recipientUserId, trimmedContent]
     );
 
     const insertedId: number = insertResult.rows[0]?.id;
@@ -235,7 +249,7 @@ export const createMessage = async (req: AuthRequest, res: Response) => {
       throw new Error('Failed to create message record');
     }
 
-    const hydrated = await fetchMessageById(insertedId);
+    const hydrated = await fetchMessageById(insertedId, companyId);
     if (!hydrated) {
       throw new Error('Failed to hydrate newly created message');
     }
@@ -250,8 +264,13 @@ export const createMessage = async (req: AuthRequest, res: Response) => {
 export const updateMessageStatus = async (req: AuthRequest, res: Response) => {
   try {
     const authUser = req.user;
+    const companyId = req.tenant?.id;
     if (!authUser) {
       return res.status(401).json({ error: 'Please authenticate' });
+    }
+
+    if (!companyId) {
+      return res.status(400).json({ error: 'Tenant context missing' });
     }
 
     const messageId = Number(req.params.id);
@@ -264,7 +283,10 @@ export const updateMessageStatus = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: "Status must be either 'read' or 'unread'" });
     }
 
-    const ownershipResult = await pool.query('SELECT sender_id, recipient_id FROM messages WHERE id = $1', [messageId]);
+    const ownershipResult = await pool.query(
+      'SELECT sender_id, recipient_id FROM messages WHERE id = $1 AND company_id = $2',
+      [messageId, companyId]
+    );
     if (ownershipResult.rows.length === 0) {
       return res.status(404).json({ error: 'Message not found' });
     }
@@ -278,8 +300,11 @@ export const updateMessageStatus = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    await pool.query('UPDATE messages SET is_read = $1, updated_at = NOW() WHERE id = $2', [status === 'read', messageId]);
-    const hydrated = await fetchMessageById(messageId);
+    await pool.query(
+      'UPDATE messages SET is_read = $1, updated_at = NOW() WHERE id = $2 AND company_id = $3',
+      [status === 'read', messageId, companyId]
+    );
+    const hydrated = await fetchMessageById(messageId, companyId);
     if (!hydrated) {
       return res.status(404).json({ error: 'Message not found' });
     }
@@ -294,8 +319,13 @@ export const updateMessageStatus = async (req: AuthRequest, res: Response) => {
 export const deleteMessage = async (req: AuthRequest, res: Response) => {
   try {
     const authUser = req.user;
+    const companyId = req.tenant?.id;
     if (!authUser) {
       return res.status(401).json({ error: 'Please authenticate' });
+    }
+
+    if (!companyId) {
+      return res.status(400).json({ error: 'Tenant context missing' });
     }
 
     const messageId = Number(req.params.id);
@@ -303,7 +333,7 @@ export const deleteMessage = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Invalid message id' });
     }
 
-    const result = await pool.query('DELETE FROM messages WHERE id = $1', [messageId]);
+    const result = await pool.query('DELETE FROM messages WHERE id = $1 AND company_id = $2', [messageId, companyId]);
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Message not found' });
     }
