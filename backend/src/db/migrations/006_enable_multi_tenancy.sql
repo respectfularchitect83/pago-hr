@@ -228,12 +228,17 @@ BEGIN
 
         SELECT id INTO default_company_id FROM companies WHERE slug = 'default' LIMIT 1;
 
-        UPDATE messages m
-           SET company_id = COALESCE(sender.company_id, recipient.company_id, default_company_id)
-          FROM users sender
-          LEFT JOIN users recipient ON recipient.id = m.recipient_id
-         WHERE m.sender_id = sender.id
-           AND m.company_id IS DISTINCT FROM COALESCE(sender.company_id, recipient.company_id, default_company_id);
+        UPDATE messages
+           SET company_id = COALESCE(
+                (SELECT company_id FROM users WHERE id = messages.sender_id),
+                (SELECT company_id FROM users WHERE id = messages.recipient_id),
+                default_company_id
+            )
+         WHERE company_id IS DISTINCT FROM COALESCE(
+                (SELECT company_id FROM users WHERE id = messages.sender_id),
+                (SELECT company_id FROM users WHERE id = messages.recipient_id),
+                default_company_id
+            );
     END IF;
 END;
 $$;
