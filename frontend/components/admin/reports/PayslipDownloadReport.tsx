@@ -34,8 +34,14 @@ const sanitizeForFileName = (value: string) =>
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 
+type SelectedPayslipState = {
+  employee: Employee;
+  payslip: Payslip;
+  mode: 'view' | 'download';
+};
+
 const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startDate, endDate, selectedBranch, selectedEmployeeId }) => {
-  const [selectedPayslip, setSelectedPayslip] = useState<{ employee: Employee; payslip: Payslip } | null>(null);
+  const [selectedPayslip, setSelectedPayslip] = useState<SelectedPayslipState | null>(null);
 
   const { scopedEmployees, payslipRows } = useMemo(() => {
     const start = new Date(startDate);
@@ -87,7 +93,11 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
   const closeModal = () => setSelectedPayslip(null);
 
   const handleViewPayslip = (row: PayslipTableRow) => {
-    setSelectedPayslip({ employee: row.employee, payslip: row.payslip });
+    setSelectedPayslip({ employee: row.employee, payslip: row.payslip, mode: 'view' });
+  };
+
+  const handleDownloadPayslip = (row: PayslipTableRow) => {
+    setSelectedPayslip({ employee: row.employee, payslip: row.payslip, mode: 'download' });
   };
 
   const handleDownloadCsv = () => {
@@ -207,12 +217,23 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">{row.status}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">{formatCurrency(row.netPay)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                    <button
-                      onClick={() => handleViewPayslip(row)}
-                      className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200"
-                    >
-                      View Payslip
-                    </button>
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => handleViewPayslip(row)}
+                        className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200"
+                      >
+                        View
+                      </button>
+                      <button
+                        onClick={() => handleDownloadPayslip(row)}
+                        className="inline-flex items-center rounded-full bg-gray-800 px-3 py-1 text-xs font-medium text-white hover:bg-gray-900"
+                      >
+                        <span className="mr-1 inline-flex">
+                          <DownloadIcon />
+                        </span>
+                        Download
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -246,6 +267,10 @@ const PayslipDownloadReport: React.FC<Props> = ({ employees, companyInfo, startD
                 payslip={selectedPayslip.payslip}
                 employee={selectedPayslip.employee}
                 companyInfo={companyInfo}
+                autoPreview={selectedPayslip.mode === 'download'}
+                onAutoPreviewComplete={() => {
+                  setSelectedPayslip(prev => (prev ? { ...prev, mode: 'view' } : null));
+                }}
               />
             </div>
           </div>

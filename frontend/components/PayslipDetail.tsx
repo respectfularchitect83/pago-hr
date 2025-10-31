@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Payslip, Company, Employee } from '../types';
 import DownloadIcon from './icons/DownloadIcon';
 import { formatCurrency } from '../utils/payrollCalculations';
@@ -18,10 +18,13 @@ interface PayslipDetailProps {
   payslip: Payslip;
   employee: Employee;
   companyInfo: Company;
+  autoPreview?: boolean;
+  onAutoPreviewComplete?: () => void;
 }
 
-const PayslipDetail: React.FC<PayslipDetailProps> = ({ payslip, employee, companyInfo }) => {
+const PayslipDetail: React.FC<PayslipDetailProps> = ({ payslip, employee, companyInfo, autoPreview = false, onAutoPreviewComplete }) => {
   const [isGenerating, setIsGenerating] = useState(false);
+  const hasAutoPreviewed = useRef(false);
   const totalEarnings = useMemo(
     () => payslip.earnings.reduce((sum, item) => sum + item.amount, 0),
     [payslip.earnings]
@@ -240,6 +243,20 @@ const PayslipDetail: React.FC<PayslipDetailProps> = ({ payslip, employee, compan
     setIsGenerating(false);
   }
   };
+
+  useEffect(() => {
+    if (autoPreview) {
+      if (hasAutoPreviewed.current) {
+        return;
+      }
+      hasAutoPreviewed.current = true;
+      handleDownloadPdf().finally(() => {
+        onAutoPreviewComplete?.();
+      });
+    } else {
+      hasAutoPreviewed.current = false;
+    }
+  }, [autoPreview, onAutoPreviewComplete]);
 
 
   const InfoRow: React.FC<{ label: string; value: string }> = ({ label, value }) => (
