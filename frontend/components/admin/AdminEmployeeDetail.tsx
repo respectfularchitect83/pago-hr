@@ -275,8 +275,8 @@ const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, com
             <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">Personal Info</h3>
             
             <div className="flex justify-center pt-2">
-                <div className="relative group w-32 h-32">
-                    <img src={localEmployee.photoUrl} alt={localEmployee.name} className="w-32 h-32 rounded-full object-cover shadow-md" />
+                <div className="relative group w-[168px] h-[168px]">
+                    <img src={localEmployee.photoUrl} alt={localEmployee.name} className="w-full h-full rounded-full object-cover shadow-md" />
                      {isEditing && (
                         <button
                             type="button"
