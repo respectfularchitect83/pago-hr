@@ -1,11 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 interface MarketingLandingProps {
   onRequestSignup: () => void;
   onRequestLogin: () => void;
 }
 
-const tierCards = [
+const baseTierCards = [
   {
     name: 'Starter',
     price: 'Free trial for 7 days',
@@ -14,7 +14,7 @@ const tierCards = [
   },
   {
     name: 'Growing Business',
-    price: 'R50 / employee',
+    price: 'US$ 4.99 / employee',
     description: 'Full HR suite for modern multi-branch teams.',
     bullets: ['Ideal for your small business', 'Leave & overtime', 'Employee Login'],
   },
@@ -32,8 +32,51 @@ const MarketingLanding: React.FC<MarketingLandingProps> = ({
 }) => {
   const [showContact, setShowContact] = useState(false);
   const [showCompliance, setShowCompliance] = useState(false);
+  const [regionalPrice, setRegionalPrice] = useState('US$ 4.99 / employee');
 
   const contactFormId = useMemo(() => `contact-form-${Math.random().toString(36).slice(2, 8)}`, []);
+  const tierCards = useMemo(
+    () =>
+      baseTierCards.map(card =>
+        card.name === 'Growing Business' ? { ...card, price: regionalPrice } : card,
+      ),
+    [regionalPrice],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolveRegionalPrice = async () => {
+      try {
+        const response = await fetch('https://ipapi.co/json/');
+        if (!response.ok) {
+          throw new Error('Failed to resolve location');
+        }
+        const data = await response.json();
+        if (cancelled) {
+          return;
+        }
+        const countryCode = typeof data?.country_code === 'string' ? data.country_code.toUpperCase() : '';
+        if (countryCode === 'ZA') {
+          setRegionalPrice('R50 / employee');
+        } else if (countryCode === 'NA') {
+          setRegionalPrice('N$ 50 / employee');
+        } else {
+          setRegionalPrice('US$ 4.99 / employee');
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setRegionalPrice('US$ 4.99 / employee');
+        }
+      }
+    };
+
+    resolveRegionalPrice();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#363925] text-[#f4f1e5]">
