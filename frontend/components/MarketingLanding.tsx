@@ -120,18 +120,7 @@ const MarketingLanding: React.FC<MarketingLandingProps> = ({
               <h1 className="mt-6 text-4xl font-semibold tracking-tight text-[#f8f6e8] sm:text-5xl md:text-6xl">
                 Payroll and HR that feel as polished as your business.
               </h1>
-              <p className="mt-6 max-w-xl text-base text-[#d5d9c1] sm:text-lg">
-                PAGO HR keeps your staff records, PAYE, UIF or Social Security, and tax payments perfectly synced. Designed for small businesses and households that deserve the same quality tools as big enterprises.
-              </p>
-              <div className="mt-10 flex flex-wrap items-center gap-4">
-                <button
-                  onClick={onRequestSignup}
-                  className="rounded-full bg-[#ecefd9] px-6 py-3 text-sm font-semibold text-[#2f321d] shadow-lg shadow-[#181a0c]/35 transition hover:bg-[#f6f8e6]"
-                  type="button"
-                >
-                  Start your free trial
-                </button>
-              </div>
+              <div className="mt-10" />
               <div className="mt-10 grid grid-cols-3 gap-6 text-sm text-[#d0d4bc]">
                 {statHighlights.map(highlight => (
                   <div key={highlight.label} className="rounded-2xl border border-[#dfe2ce]/20 bg-[#f8f6e8]/10 p-4">
@@ -142,41 +131,7 @@ const MarketingLanding: React.FC<MarketingLandingProps> = ({
               </div>
             </div>
 
-            <div className="w-full md:w-1/2">
-              <button
-                onClick={onRequestSignup}
-                className="group relative block w-full overflow-hidden rounded-[32px] border border-[#b9bea1]/25 bg-gradient-to-br from-[#2f321f] via-[#2a2d1c] to-[#242716] p-6 text-left shadow-2xl shadow-[#191b0d]/45 transition hover:-translate-y-1 hover:border-[#e3e6d4]/40"
-                type="button"
-              >
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(227,231,204,0.18),transparent_55%)] opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" />
-                <div className="relative rounded-3xl bg-[#2d301d]/80 p-6 backdrop-blur">
-                  <div className="flex items-center justify-between text-xs font-medium text-[#b5ba9d]">
-                    <span>PAGO HR Console</span>
-                    <span>Realtime payroll</span>
-                  </div>
-                  <div className="mt-6 rounded-2xl bg-[#222412]/80 p-6 shadow-inner">
-                    <p className="text-sm font-semibold text-[#f4f1e5]">Payroll summary</p>
-                    <div className="mt-4 space-y-3 text-sm">
-                      <div className="flex items-center justify-between rounded-xl border border-[#dfe2ce]/20 bg-[#f8f6e8]/10 px-3 py-2">
-                        <span className="text-[#d0d4bc]">This month</span>
-                        <span className="font-semibold text-[#f8f6e8]">R 142 500</span>
-                      </div>
-                      <div className="flex items-center justify-between rounded-xl border border-[#dfe2ce]/20 bg-[#f8f6e8]/10 px-3 py-2">
-                        <span className="text-[#d0d4bc]">UIF & SSC ready</span>
-                        <span className="font-semibold text-[#c4e0a3]">On track</span>
-                      </div>
-                      <div className="flex items-center justify-between rounded-xl border border-[#dfe2ce]/20 bg-[#f8f6e8]/10 px-3 py-2">
-                        <span className="text-[#d0d4bc]">Payslips sent</span>
-                        <span className="font-semibold text-[#f8f6e8]">28 / 28</span>
-                      </div>
-                    </div>
-                  </div>
-                  <p className="mt-6 text-sm text-[#d0d4bc]">
-                    Click to start a free sandbox and experience the full dashboard.
-                  </p>
-                </div>
-              </button>
-            </div>
+            <div className="hidden w-full md:block md:w-1/2" />
           </div>
         </section>
 
