@@ -56,6 +56,7 @@ export interface Employee {
   employeeId: string;
   email?: string;
   taxNumber: string;
+  socialSecurityNumber: string;
   idNumber: string;
   phoneNumber: string;
   address: string;

@@ -45,6 +45,11 @@ export const ensureLatestSchema = async (): Promise<void> => {
     `);
 
     await pool.query(`
+      ALTER TABLE employees
+        ADD COLUMN IF NOT EXISTS socialsecuritynumber VARCHAR(80);
+    `);
+
+    await pool.query(`
       ALTER TABLE users
         ADD COLUMN IF NOT EXISTS photo_url TEXT;
     `);

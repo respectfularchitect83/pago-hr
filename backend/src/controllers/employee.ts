@@ -38,6 +38,10 @@ export const createEmployee = async (req: Request, res: Response) => {
       gender,
       photo_url,
       leaverecords,
+      socialsecuritynumber,
+      social_security_number,
+      socialSecurityNumber,
+      uifnumber,
     } = req.body;
 
     const toNumberOrNull = (value: any) => {
@@ -60,6 +64,13 @@ export const createEmployee = async (req: Request, res: Response) => {
     const normalizedLeaveRecords = leaverecords
       ? (typeof leaverecords === 'string' ? leaverecords : JSON.stringify(leaverecords))
       : JSON.stringify([]);
+    const rawSocialSecurityNumberCreate = socialsecuritynumber
+      ?? social_security_number
+      ?? socialSecurityNumber
+      ?? uifnumber;
+    const normalizedSocialSecurityNumber = typeof rawSocialSecurityNumberCreate === 'string'
+      ? (rawSocialSecurityNumberCreate.trim() || null)
+      : rawSocialSecurityNumberCreate ?? null;
 
     const client = await pool.connect();
     try {
@@ -77,6 +88,7 @@ export const createEmployee = async (req: Request, res: Response) => {
             department,
             startdate,
             taxnumber,
+            socialsecuritynumber,
             idnumber,
             phonenumber,
             address,
@@ -91,8 +103,8 @@ export const createEmployee = async (req: Request, res: Response) => {
           )
           VALUES (
             $1, $2, $3, $4, $5, $6, $7,
-            $8, $9, $10, $11, $12, $13::jsonb,
-            $14, $15, $16, $17, $18, $19, $20::jsonb
+            $8, $9, $10, $11, $12, $13, $14::jsonb,
+            $15, $16, $17, $18, $19, $20, $21::jsonb
           )
           RETURNING *`,
         [
@@ -105,6 +117,7 @@ export const createEmployee = async (req: Request, res: Response) => {
           department,
           startdate && startdate !== '' ? startdate : null,
           taxnumber || null,
+          normalizedSocialSecurityNumber,
           idnumber || null,
           phonenumber || null,
           address || null,
@@ -261,6 +274,10 @@ export const updateEmployee = async (req: Request, res: Response) => {
       gender,
       photo_url,
       leaverecords,
+      socialsecuritynumber,
+      social_security_number,
+      socialSecurityNumber,
+      uifnumber,
     } = req.body;
 
     const toNumberOrNull = (value: any) => {
@@ -282,6 +299,13 @@ export const updateEmployee = async (req: Request, res: Response) => {
     const normalizedLeaveRecords = leaverecords
       ? (typeof leaverecords === 'string' ? leaverecords : JSON.stringify(leaverecords))
       : JSON.stringify([]);
+    const rawSocialSecurityNumberUpdate = socialsecuritynumber
+      ?? social_security_number
+      ?? socialSecurityNumber
+      ?? uifnumber;
+    const normalizedSocialSecurityNumber = typeof rawSocialSecurityNumberUpdate === 'string'
+      ? (rawSocialSecurityNumberUpdate.trim() || null)
+      : rawSocialSecurityNumberUpdate ?? null;
 
     const client = await pool.connect();
     try {
@@ -307,19 +331,20 @@ export const updateEmployee = async (req: Request, res: Response) => {
         department=$7,
         startdate=$8,
         taxnumber=$9,
-        idnumber=$10,
-        phonenumber=$11,
-        address=$12,
-        bankdetails=$13::jsonb,
-        terminationdate=$14,
-        basicsalary=$15,
-        appointmenthours=$16,
-        branch=$17,
-        gender=$18,
-        photo_url=$19,
-        leave_records=$20::jsonb,
+        socialsecuritynumber=$10,
+        idnumber=$11,
+        phonenumber=$12,
+        address=$13,
+        bankdetails=$14::jsonb,
+        terminationdate=$15,
+        basicsalary=$16,
+        appointmenthours=$17,
+        branch=$18,
+        gender=$19,
+        photo_url=$20,
+        leave_records=$21::jsonb,
         updated_at=NOW()
-      WHERE id=$21
+      WHERE id=$22
       RETURNING *`,
         [
           employeeid,
@@ -331,6 +356,7 @@ export const updateEmployee = async (req: Request, res: Response) => {
           department,
           startdate && startdate !== '' ? startdate : null,
           taxnumber || null,
+          normalizedSocialSecurityNumber,
           idnumber || null,
           phonenumber || null,
           address || null,

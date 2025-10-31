@@ -48,6 +48,7 @@ const Profile: React.FC<ProfileProps> = ({ employee }) => {
                 <ProfileInfoRow icon={<IdentificationIcon />} label="Employee ID" value={employee.employeeId} />
                 <ProfileInfoRow icon={<IdentificationIcon />} label="ID Number" value={employee.idNumber || '-'} />
                 <ProfileInfoRow icon={<IdentificationIcon />} label="Tax Number" value={employee.taxNumber || '-'} />
+                <ProfileInfoRow icon={<IdentificationIcon />} label="Social Security / UIF" value={employee.socialSecurityNumber || '-'} />
                 <ProfileInfoRow icon={<MapPinIcon />} label="Address" value={employee.address || '-'} />
             </div>
         </div>

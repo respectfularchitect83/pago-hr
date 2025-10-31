@@ -25,7 +25,8 @@ const AdminEmployeeList: React.FC<AdminEmployeeListProps> = ({ employees, onSele
         emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         emp.employeeId.toLowerCase().includes(searchTerm.toLowerCase()) ||
         emp.position.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (emp.branch && emp.branch.toLowerCase().includes(searchTerm.toLowerCase()))
+        (emp.branch && emp.branch.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (emp.socialSecurityNumber && emp.socialSecurityNumber.toLowerCase().includes(searchTerm.toLowerCase()))
       );
   }, [employees, searchTerm, statusFilter]);
 
@@ -87,6 +88,7 @@ const AdminEmployeeList: React.FC<AdminEmployeeListProps> = ({ employees, onSele
             <tr>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee ID</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Social Security / UIF</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
@@ -124,6 +126,7 @@ const AdminEmployeeList: React.FC<AdminEmployeeListProps> = ({ employees, onSele
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{employee.employeeId}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{employee.socialSecurityNumber || 'N/A'}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{employee.position}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{employee.branch || 'N/A'}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

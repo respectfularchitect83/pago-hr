@@ -142,6 +142,11 @@ const mapEmployeeFromApi = (raw: any): Employee => {
     employeeId: (raw?.employeeid ?? raw?.employeeId ?? '').toString(),
     email: raw?.email ?? raw?.mail ?? '',
     taxNumber: raw?.taxnumber ?? raw?.taxNumber ?? '',
+    socialSecurityNumber: raw?.socialsecuritynumber
+      ?? raw?.socialSecurityNumber
+      ?? raw?.social_security_number
+      ?? raw?.uifnumber
+      ?? '',
     idNumber: raw?.idnumber ?? raw?.idNumber ?? '',
     phoneNumber: raw?.phonenumber ?? raw?.phoneNumber ?? '',
     address: raw?.address ?? '',
@@ -175,6 +180,12 @@ const mapEmployeeToApiPayload = (employee: Employee) => {
   }
   if (employee.taxNumber) {
     payload.taxnumber = employee.taxNumber;
+  }
+  if (employee.socialSecurityNumber !== undefined) {
+    const trimmed = typeof employee.socialSecurityNumber === 'string'
+      ? employee.socialSecurityNumber.trim()
+      : employee.socialSecurityNumber;
+    payload.socialsecuritynumber = trimmed ? trimmed : null;
   }
   if (employee.idNumber) {
     payload.idnumber = employee.idNumber;

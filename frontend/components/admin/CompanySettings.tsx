@@ -61,6 +61,7 @@ const CompanySettings: React.FC<CompanySettingsProps> = ({ company, onSave, empl
             terminationDate: emp.terminationDate || '',
             idNumber: emp.idNumber,
             taxNumber: emp.taxNumber,
+            socialSecurityNumber: emp.socialSecurityNumber,
             phoneNumber: emp.phoneNumber,
             address: emp.address,
             bankName: emp.bankDetails.bankName,

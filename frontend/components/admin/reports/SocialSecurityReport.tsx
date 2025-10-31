@@ -40,6 +40,7 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
                          data.push({
                             employeeId: emp.employeeId,
                             name: emp.name,
+                            socialSecurityNumber: emp.socialSecurityNumber || '',
                             branch: emp.branch || 'N/A',
                             payDate: p.payDate,
                             ssDescription: ssDeduction.description,
@@ -65,6 +66,7 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
             columns: [
                 { key: 'name', label: 'Employee' },
                 { key: 'employeeId', label: 'Employee ID' },
+                { key: 'socialSecurityNumber', label: 'Social Security / UIF' },
                 { key: 'branch', label: 'Branch' },
                 { key: 'payDate', label: 'Pay Date' },
                 { key: 'ssDescription', label: 'Description' },
@@ -101,6 +103,8 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
                     <thead className="bg-gray-50">
                         <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee ID</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Social Security / UIF</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pay Date</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
@@ -110,7 +114,9 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
                     <tbody className="bg-white divide-y divide-gray-200">
                         {reportData.length > 0 ? reportData.map((row, index) => (
                             <tr key={index}>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{row.name} ({row.employeeId})</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{row.name}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.employeeId}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.socialSecurityNumber || 'N/A'}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.branch}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.payDate}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.ssDescription}</td>
@@ -118,7 +124,7 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
                             </tr>
                         )) : (
                             <tr>
-                                <td colSpan={5} className="text-center py-8 text-gray-500">No social security data found for the selected period.</td>
+                                <td colSpan={7} className="text-center py-8 text-gray-500">No social security data found for the selected period.</td>
                             </tr>
                         )}
                     </tbody>

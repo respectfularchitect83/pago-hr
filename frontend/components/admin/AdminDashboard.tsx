@@ -46,6 +46,7 @@ const blankEmployee: Employee = {
     employeeId: '',
     email: '',
     taxNumber: '',
+  socialSecurityNumber: '',
     idNumber: '',
     phoneNumber: '',
     address: '',

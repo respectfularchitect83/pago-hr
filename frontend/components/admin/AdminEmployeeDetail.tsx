@@ -23,6 +23,7 @@ interface AdminEmployeeDetailProps {
 
 const normalizeEmployeeData = (emp: Employee): Employee => ({
     ...emp,
+    socialSecurityNumber: emp.socialSecurityNumber || '',
     startDate: formatDateOnly(emp.startDate),
     terminationDate: emp.terminationDate ? formatDateOnly(emp.terminationDate) : emp.terminationDate,
     payslips: [...(emp.payslips || [])],
@@ -373,6 +374,12 @@ const AdminEmployeeDetail: React.FC<AdminEmployeeDetailProps> = ({ employee, com
 
             <EditableField label="Start Date" value={localEmployee.startDate} onChange={val => handleFieldChange('startDate', val)} type="date" isEditing={isEditing} />
             <EditableField label="Tax Number" value={localEmployee.taxNumber} onChange={val => handleFieldChange('taxNumber', val)} isEditing={isEditing} />
+            <EditableField
+                label="Social Security / UIF Number"
+                value={localEmployee.socialSecurityNumber}
+                onChange={val => handleFieldChange('socialSecurityNumber', val)}
+                isEditing={isEditing}
+            />
             <div className="pt-2">
                 {isEditing ? (
                     <>
