@@ -260,8 +260,8 @@ const MessagesView: React.FC<MessagesViewProps> = ({
 
     return (
         <div className="p-4 sm:p-6 animate-fade-in">
-            <div className="grid gap-6 md:grid-cols-[260px_minmax(0,1fr)] min-h-[70vh] lg:h-[calc(100vh-220px)]">
-                <aside className="flex flex-col border-r border-gray-200 pr-4 overflow-y-auto">
+            <div className="grid gap-6 md:grid-cols-[260px_minmax(0,1fr)] min-h-[70vh] lg:min-h-[calc(100vh-220px)]">
+                <aside className="flex min-h-0 flex-col border-r border-gray-200 pr-4 overflow-y-auto">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-lg font-semibold text-gray-800">Messages</h2>
                         {totalUnread > 0 && (
@@ -318,7 +318,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({
                         )}
                     </div>
                 </aside>
-                <section className="flex h-full max-h-full flex-col overflow-hidden">
+                <section className="flex h-full min-h-0 max-h-full flex-col overflow-hidden">
                     {selectedConversation ? (
                         <>
                             <div className="flex items-center justify-between border-b border-gray-200 pb-3">
