@@ -7,6 +7,19 @@ import DocumentTextIcon from '../../icons/DocumentTextIcon';
 import { downloadTableAsPdf } from '../../../utils/reportExport';
 import { countryRegulations } from '../../../data/regulations';
 
+const formatDisplayDate = (value?: string) => {
+    if (!value) {
+        return '';
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+    return date.toISOString().split('T')[0];
+};
+
+const formatCurrency = (value: number) => value.toFixed(2);
+
 interface ReportProps {
     employees: Employee[];
     companyInfo: Company;
@@ -37,13 +50,14 @@ const TaxReport: React.FC<ReportProps> = ({ employees, companyInfo, startDate, e
                 if (payDate >= start && payDate <= end) {
                     const taxDeduction = p.deductions.find(d => d.description === taxDescription);
                     if (taxDeduction) {
-                         data.push({
+                        const rawAmount = Number(taxDeduction.amount ?? 0);
+                        data.push({
                             employeeId: emp.employeeId,
                             name: emp.name,
                             branch: emp.branch || 'N/A',
-                            payDate: p.payDate,
+                            payDate: formatDisplayDate(p.payDate),
                             taxDescription: taxDeduction.description,
-                            taxAmount: taxDeduction.amount.toFixed(2),
+                            taxAmount: Number(rawAmount.toFixed(2)),
                         });
                     }
                 }
@@ -52,8 +66,21 @@ const TaxReport: React.FC<ReportProps> = ({ employees, companyInfo, startDate, e
         return data.sort((a, b) => new Date(a.payDate).getTime() - new Date(b.payDate).getTime());
     }, [employees, startDate, endDate, taxDescription, selectedBranch, selectedEmployeeId]);
 
+    const totalTaxAmount = useMemo(() => reportData.reduce((sum, row) => sum + Number(row.taxAmount || 0), 0), [reportData]);
+    const formattedTotalTax = formatCurrency(totalTaxAmount);
+
     const handleDownload = () => {
-        const csv = convertToCSV(reportData);
+        const csv = convertToCSV([
+            ...reportData,
+            {
+                name: 'TOTAL',
+                employeeId: '',
+                branch: '',
+                payDate: '',
+                taxDescription: '',
+                taxAmount: formattedTotalTax,
+            },
+        ]);
         downloadCSV(csv, `tax-report-${startDate}-to-${endDate}.csv`);
     };
 
@@ -61,7 +88,17 @@ const TaxReport: React.FC<ReportProps> = ({ employees, companyInfo, startDate, e
         downloadTableAsPdf({
             title: 'Tax Report',
             subtitle: `Period ${startDate} to ${endDate}`,
-            rows: reportData,
+            rows: [
+                ...reportData,
+                {
+                    name: 'TOTAL',
+                    employeeId: '',
+                    branch: '',
+                    payDate: '',
+                    taxDescription: '',
+                    taxAmount: formattedTotalTax,
+                },
+            ],
             columns: [
                 { key: 'name', label: 'Employee' },
                 { key: 'employeeId', label: 'Employee ID' },
@@ -114,7 +151,7 @@ const TaxReport: React.FC<ReportProps> = ({ employees, companyInfo, startDate, e
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.branch}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.payDate}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.taxDescription}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">{row.taxAmount}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">{formatCurrency(Number(row.taxAmount || 0))}</td>
                             </tr>
                         )) : (
                             <tr>
@@ -122,6 +159,14 @@ const TaxReport: React.FC<ReportProps> = ({ employees, companyInfo, startDate, e
                             </tr>
                         )}
                     </tbody>
+                    {reportData.length > 0 && (
+                        <tfoot className="bg-gray-100">
+                            <tr>
+                                <td colSpan={4} className="px-6 py-3 text-right text-sm font-semibold text-gray-700">Total Tax</td>
+                                <td className="px-6 py-3 text-right text-sm font-semibold text-gray-900 font-mono">{formattedTotalTax}</td>
+                            </tr>
+                        </tfoot>
+                    )}
                 </table>
             </div>
         </div>

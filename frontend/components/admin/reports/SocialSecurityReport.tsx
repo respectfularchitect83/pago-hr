@@ -22,6 +22,8 @@ const deriveNamibianNameParts = (fullName: string) => {
     return { surname, initials };
 };
 
+const formatCurrency = (value: number) => value.toFixed(2);
+
 interface ReportProps {
     employees: Employee[];
     companyInfo: Company;
@@ -43,7 +45,7 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
             branch: string;
             payDate: string;
             ssDescription: string;
-            ssAmount: string;
+            ssAmount: number;
         }> = [];
         const aggregated = new Map<string, { employee: Employee; amount: number }>();
         const start = new Date(startDate);
@@ -72,7 +74,7 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
                             branch: emp.branch || 'N/A',
                             payDate: payDate.toISOString().split('T')[0],
                             ssDescription: ssDeduction.description,
-                            ssAmount: amount.toFixed(2),
+                            ssAmount: Number(amount.toFixed(2)),
                         });
 
                         const existing = aggregated.get(emp.id);
@@ -116,9 +118,22 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
     }, [employees, startDate, endDate, ssDescription, selectedBranch, selectedEmployeeId]);
 
     const reportData = reportRows;
+    const totalReportAmount = useMemo(() => reportData.reduce((sum, row) => sum + Number(row.ssAmount || 0), 0), [reportData]);
+    const formattedReportTotal = formatCurrency(totalReportAmount);
 
     const handleDownload = () => {
-        const csv = convertToCSV(reportData);
+        const csv = convertToCSV([
+            ...reportData,
+            {
+                name: 'TOTAL',
+                employeeId: '',
+                socialSecurityNumber: '',
+                branch: '',
+                payDate: '',
+                ssDescription: '',
+                ssAmount: formattedReportTotal,
+            },
+        ]);
         downloadCSV(csv, `social-security-report-${startDate}-to-${endDate}.csv`);
     };
 
@@ -126,7 +141,18 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
         downloadTableAsPdf({
             title: 'Social Security Report',
             subtitle: `Period ${startDate} to ${endDate}`,
-            rows: reportData,
+            rows: [
+                ...reportData,
+                {
+                    name: 'TOTAL',
+                    employeeId: '',
+                    branch: '',
+                    payDate: '',
+                    socialSecurityNumber: '',
+                    ssDescription: '',
+                    ssAmount: formattedReportTotal,
+                },
+            ],
             columns: [
                 { key: 'name', label: 'Employee' },
                 { key: 'employeeId', label: 'Employee ID' },
@@ -180,8 +206,8 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
   <head>
     <meta charset="utf-8" />
     <title>Form 10(a)</title>
-    <style>
-      body { font-family: 'Times New Roman', serif; color: #000; margin: 0; padding: 24px 32px; }
+        <style>
+            body { font-family: 'Arial', sans-serif; color: #000; margin: 0; padding: 24px 32px; }
     .commission-block { text-align: center; margin-top: 8px; text-transform: uppercase; }
     .commission-line { font-size: 14px; font-weight: bold; line-height: 1.4; }
     .commission-subtitle { text-align: center; font-size: 11px; margin-top: 4px; text-transform: none; }
@@ -190,9 +216,9 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
     .form-number { font-weight: bold; text-transform: uppercase; }
     .return-title { text-align: center; font-size: 12px; margin-top: 18px; text-transform: uppercase; }
     .period-block { margin-top: 12px; text-align: center; }
-    .period-dates { display: flex; justify-content: center; gap: 80px; font-size: 13px; font-weight: bold; }
+    .period-dates { display: flex; align-items: center; justify-content: center; gap: 48px; font-size: 13px; font-weight: bold; }
     .period-date { display: inline-block; letter-spacing: 0; }
-    .period-to { margin-top: 6px; font-size: 12px; letter-spacing: 2px; }
+    .period-to { font-size: 12px; letter-spacing: 4px; }
     .block-letters { text-align: center; font-size: 11px; margin-top: 6px; text-transform: uppercase; }
     .details-table { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 12px; }
     .details-table td { padding: 10px 8px; border: none; }
@@ -244,9 +270,9 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
                     <div class="period-block">
                         <div class="period-dates">
                         <span class="period-date">${formatPeriodDate(startDate)}</span>
+                        <span class="period-to">T  O</span>
                         <span class="period-date">${formatPeriodDate(endDate)}</span>
                         </div>
-                        <div class="period-to">T  O</div>
                     </div>
         <div class="block-letters">(SECTION 22/REGULATION 5) &ndash; TO BE COMPLETED IN BLOCK LETTERS</div>
     <table class="details-table">
@@ -273,7 +299,7 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
             <tr><td class="label" colspan="4">Employer's Contribution</td><td class="amount">${formatMoney(employerContribution)}</td></tr>
             <tr><td class="label" colspan="4">Total Amount Paid Over</td><td class="amount">${formatMoney(totalPaidOver)}</td></tr>
     </table>
-    <div class="declaration">Declaration<br/>I, ________________________________________________ (Full Names and Capacity) certify that the above particulars are true and correct.</div>
+    <div class="declaration">Declaration<br/>I, ________________________________________________ (Full Names and Capacity)<br/>certify that the above particulars are true and correct.</div>
     <div class="signature-row">
       <div class="signature-cell"><div class="signature-line"></div><div>EMPLOYER</div></div>
       <div class="signature-cell"><div class="signature-line"></div><div>OFFICIAL STAMP</div></div>
@@ -353,7 +379,7 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.branch}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.payDate}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.ssDescription}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">{row.ssAmount}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">{formatCurrency(Number(row.ssAmount || 0))}</td>
                             </tr>
                         )) : (
                             <tr>
@@ -361,6 +387,14 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
                             </tr>
                         )}
                     </tbody>
+                    {reportData.length > 0 && (
+                        <tfoot className="bg-gray-100">
+                            <tr>
+                                <td colSpan={6} className="px-6 py-3 text-right text-sm font-semibold text-gray-700">Total Contributions</td>
+                                <td className="px-6 py-3 text-right text-sm font-semibold text-gray-900 font-mono">{formattedReportTotal}</td>
+                            </tr>
+                        </tfoot>
+                    )}
                 </table>
             </div>
         </div>

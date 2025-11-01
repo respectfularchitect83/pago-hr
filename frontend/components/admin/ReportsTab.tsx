@@ -11,7 +11,7 @@ interface ReportsTabProps {
     companyInfo: Company;
 }
 
-type ReportType = 'payslip-download' | 'pay-sheet' | 'tax' | 'social-security';
+type ReportType = 'payslip-download' | 'payroll' | 'tax' | 'social-security';
 
 const toLocalIsoString = (date: Date) => {
     const offsetMinutes = date.getTimezoneOffset();
@@ -93,7 +93,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ employees, companyInfo }) => {
         switch(activeReport) {
             case 'payslip-download':
                 return <PayslipDownloadReport {...baseProps} companyInfo={companyInfo} />;
-            case 'pay-sheet':
+            case 'payroll':
                 return <PaySheetReport {...baseProps} />;
             case 'tax':
                 return <TaxReport {...baseProps} companyInfo={companyInfo} />;
@@ -187,8 +187,8 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ employees, companyInfo }) => {
                     <button onClick={() => setActiveReport('payslip-download')} className={`whitespace-nowrap pb-2 px-1 border-b-2 font-medium text-sm ${activeReport === 'payslip-download' ? 'border-gray-800 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
                         Payslip Downloads
                     </button>
-                    <button onClick={() => setActiveReport('pay-sheet')} className={`whitespace-nowrap pb-2 px-1 border-b-2 font-medium text-sm ${activeReport === 'pay-sheet' ? 'border-gray-800 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
-                        Pay Sheet
+                    <button onClick={() => setActiveReport('payroll')} className={`whitespace-nowrap pb-2 px-1 border-b-2 font-medium text-sm ${activeReport === 'payroll' ? 'border-gray-800 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
+                        Payroll Report
                     </button>
                     <button onClick={() => setActiveReport('tax')} className={`whitespace-nowrap pb-2 px-1 border-b-2 font-medium text-sm ${activeReport === 'tax' ? 'border-gray-800 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
                         Tax Report

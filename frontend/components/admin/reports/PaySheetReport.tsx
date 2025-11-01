@@ -6,6 +6,19 @@ import DownloadIcon from '../../icons/DownloadIcon';
 import DocumentTextIcon from '../../icons/DocumentTextIcon';
 import { downloadTableAsPdf } from '../../../utils/reportExport';
 
+const formatDisplayDate = (value?: string) => {
+    if (!value) {
+        return '';
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+    return date.toISOString().split('T')[0];
+};
+
+const formatCurrency = (value: number) => value.toFixed(2);
+
 interface ReportProps {
     employees: Employee[];
     startDate: string;
@@ -38,12 +51,12 @@ const PaySheetReport: React.FC<ReportProps> = ({ employees, startDate, endDate, 
                         employeeId: emp.employeeId,
                         name: emp.name,
                         branch: emp.branch || 'N/A',
-                        payDate: p.payDate,
-                        periodStart: p.payPeriodStart,
-                        periodEnd: p.payPeriodEnd,
+                        payDate: formatDisplayDate(p.payDate),
+                        periodStart: formatDisplayDate(p.payPeriodStart),
+                        periodEnd: formatDisplayDate(p.payPeriodEnd),
                         bankName: emp.bankDetails.bankName,
                         accountNumber: emp.bankDetails.accountNumber,
-                        netPay: netPay.toFixed(2),
+                        netPay: Number(netPay.toFixed(2)),
                     });
                 }
             });
@@ -51,16 +64,45 @@ const PaySheetReport: React.FC<ReportProps> = ({ employees, startDate, endDate, 
         return data.sort((a, b) => new Date(a.payDate).getTime() - new Date(b.payDate).getTime());
     }, [employees, startDate, endDate, selectedBranch, selectedEmployeeId]);
 
+    const totalNetPay = useMemo(() => reportData.reduce((sum, row) => sum + Number(row.netPay || 0), 0), [reportData]);
+    const formattedTotalNetPay = formatCurrency(totalNetPay);
+
     const handleDownload = () => {
-        const csv = convertToCSV(reportData);
-        downloadCSV(csv, `pay-sheet-report-${startDate}-to-${endDate}.csv`);
+        const csv = convertToCSV([
+            ...reportData,
+            {
+                name: 'TOTAL',
+                employeeId: '',
+                branch: '',
+                payDate: '',
+                periodStart: '',
+                periodEnd: '',
+                bankName: '',
+                accountNumber: '',
+                netPay: formattedTotalNetPay,
+            },
+        ]);
+        downloadCSV(csv, `payroll-report-${startDate}-to-${endDate}.csv`);
     };
 
     const handleDownloadPdf = () => {
         downloadTableAsPdf({
-            title: 'Pay Sheet Report',
+            title: 'Payroll Report',
             subtitle: `Period ${startDate} to ${endDate}`,
-            rows: reportData,
+            rows: [
+                ...reportData,
+                {
+                    name: 'TOTAL',
+                    employeeId: '',
+                    branch: '',
+                    payDate: '',
+                    periodStart: '',
+                    periodEnd: '',
+                    bankName: '',
+                    accountNumber: '',
+                    netPay: formattedTotalNetPay,
+                },
+            ],
             columns: [
                 { key: 'name', label: 'Employee' },
                 { key: 'employeeId', label: 'Employee ID' },
@@ -78,7 +120,7 @@ const PaySheetReport: React.FC<ReportProps> = ({ employees, startDate, endDate, 
     return (
         <div>
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-700">Pay Sheet Results</h3>
+                <h3 className="text-lg font-semibold text-gray-700">Payroll Report Results</h3>
                 <div className="flex items-center gap-2">
                     <button
                         onClick={handleDownloadPdf}
@@ -117,10 +159,10 @@ const PaySheetReport: React.FC<ReportProps> = ({ employees, startDate, endDate, 
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{row.name} ({row.employeeId})</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.branch}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.payDate}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.periodStart} - {row.periodEnd}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.periodStart}{row.periodStart && row.periodEnd ? ' - ' : ''}{row.periodEnd}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.bankName}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.accountNumber}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">{row.netPay}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">{formatCurrency(Number(row.netPay || 0))}</td>
                             </tr>
                         )) : (
                             <tr>
@@ -128,6 +170,14 @@ const PaySheetReport: React.FC<ReportProps> = ({ employees, startDate, endDate, 
                             </tr>
                         )}
                     </tbody>
+                    {reportData.length > 0 && (
+                        <tfoot className="bg-gray-100">
+                            <tr>
+                                <td colSpan={6} className="px-6 py-3 text-right text-sm font-semibold text-gray-700">Total Net Pay</td>
+                                <td className="px-6 py-3 text-right text-sm font-semibold text-gray-900 font-mono">{formattedTotalNetPay}</td>
+                            </tr>
+                        </tfoot>
+                    )}
                 </table>
             </div>
         </div>
