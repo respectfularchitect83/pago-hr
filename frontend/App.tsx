@@ -170,6 +170,10 @@ const defaultCompanyInfo: Company = {
   country: 'South Africa',
   branches: [],
   leaveSettings: {},
+  taxNumber: '',
+  socialSecurityNumber: '',
+  emailAddress: '',
+  phoneNumber: '',
 };
 
 const mapPayslipFromApi = (raw: any): Payslip => {

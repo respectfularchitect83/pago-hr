@@ -89,6 +89,10 @@ export interface Company {
     branches: string[];
     logoUrl?: string;
     leaveSettings: { [key in LeaveType]?: number };
+  taxNumber?: string;
+  socialSecurityNumber?: string;
+  emailAddress?: string;
+  phoneNumber?: string;
 }
 
 export interface PublicHoliday {

@@ -10,12 +10,21 @@ const DEFAULT_COMPANY = {
   branches: [] as string[],
   logoUrl: undefined as string | undefined,
   leaveSettings: {} as Record<string, number>,
+  taxNumber: '',
+  socialSecurityNumber: '',
+  emailAddress: '',
+  phoneNumber: '',
 };
 
 const toResponsePayload = (company: Company | undefined) => {
   if (!company) {
     return { ...DEFAULT_COMPANY };
   }
+
+  const metadata = company.metadata ?? {};
+  const taxNumber = typeof metadata.companyTaxNumber === 'string' ? metadata.companyTaxNumber : '';
+  const socialSecurityNumber = typeof metadata.companySocialSecurityNumber === 'string' ? metadata.companySocialSecurityNumber : '';
+  const phoneNumber = typeof metadata.companyPhoneNumber === 'string' ? metadata.companyPhoneNumber : '';
 
   return {
     name: company.name ?? DEFAULT_COMPANY.name,
@@ -24,6 +33,10 @@ const toResponsePayload = (company: Company | undefined) => {
     branches: company.branches ?? DEFAULT_COMPANY.branches,
     logoUrl: company.logo_url ?? DEFAULT_COMPANY.logoUrl,
     leaveSettings: company.leave_settings ?? DEFAULT_COMPANY.leaveSettings,
+    taxNumber,
+    socialSecurityNumber,
+    emailAddress: company.primary_contact_email ?? DEFAULT_COMPANY.emailAddress,
+    phoneNumber,
   };
 };
 
@@ -78,6 +91,10 @@ export const updateCompanySettings = async (req: TenantRequest, res: Response) =
       branches,
       logoUrl,
       leaveSettings,
+      taxNumber,
+      socialSecurityNumber,
+      emailAddress,
+      phoneNumber,
     } = req.body;
 
     const normalizedBranches = Array.isArray(branches)
@@ -94,6 +111,29 @@ export const updateCompanySettings = async (req: TenantRequest, res: Response) =
         }, {})
       : undefined;
 
+    const normalizedEmail = typeof emailAddress === 'string' ? emailAddress.trim() : undefined;
+    const normalizedTaxNumber = typeof taxNumber === 'string' ? taxNumber.trim() : undefined;
+    const normalizedSocialSecurityNumber = typeof socialSecurityNumber === 'string' ? socialSecurityNumber.trim() : undefined;
+    const normalizedPhoneNumber = typeof phoneNumber === 'string' ? phoneNumber.trim() : undefined;
+
+    const metadataPatch: Record<string, string | null> = {};
+    let hasMetadataPatch = false;
+
+    if (taxNumber !== undefined) {
+      metadataPatch.companyTaxNumber = normalizedTaxNumber ? normalizedTaxNumber : null;
+      hasMetadataPatch = true;
+    }
+
+    if (socialSecurityNumber !== undefined) {
+      metadataPatch.companySocialSecurityNumber = normalizedSocialSecurityNumber ? normalizedSocialSecurityNumber : null;
+      hasMetadataPatch = true;
+    }
+
+    if (phoneNumber !== undefined) {
+      metadataPatch.companyPhoneNumber = normalizedPhoneNumber ? normalizedPhoneNumber : null;
+      hasMetadataPatch = true;
+    }
+
     const updated = await updateCompanyRecord(companyId, {
       name: typeof name === 'string' ? name : undefined,
       address: typeof address === 'string' ? address : undefined,
@@ -101,6 +141,8 @@ export const updateCompanySettings = async (req: TenantRequest, res: Response) =
       branches: normalizedBranches,
       logoUrl: typeof logoUrl === 'string' && logoUrl.trim() !== '' ? logoUrl : null,
       leaveSettings: normalizedLeaveSettings,
+      primaryContactEmail: normalizedEmail === undefined ? undefined : (normalizedEmail || null),
+      metadataPatch: hasMetadataPatch ? metadataPatch : undefined,
     });
 
     // Refresh tenant snapshot for downstream middleware consumers

@@ -163,6 +163,38 @@ const CompanySettings: React.FC<CompanySettingsProps> = ({ company, onSave, empl
                         type="textarea"
                         isEditing={true}
                     />
+                    <EditableField
+                        label="Company Email Address"
+                        value={localCompany.emailAddress ?? ''}
+                        onChange={val => handleFieldChange('emailAddress', val)}
+                        isEditing={true}
+                        type="text"
+                    />
+                    <EditableField
+                        label="Company Telephone Number"
+                        value={localCompany.phoneNumber ?? ''}
+                        onChange={val => handleFieldChange('phoneNumber', val)}
+                        isEditing={true}
+                        type="text"
+                    />
+                    {localCompany.country === 'Namibia' && (
+                        <>
+                            <EditableField
+                                label="Company Tax Number"
+                                value={localCompany.taxNumber ?? ''}
+                                onChange={val => handleFieldChange('taxNumber', val)}
+                                isEditing={true}
+                                type="text"
+                            />
+                            <EditableField
+                                label="Company Social Security Number"
+                                value={localCompany.socialSecurityNumber ?? ''}
+                                onChange={val => handleFieldChange('socialSecurityNumber', val)}
+                                isEditing={true}
+                                type="text"
+                            />
+                        </>
+                    )}
                      <div>
                         <label className="block text-sm font-medium text-gray-700">Company Logo</label>
                         <div className="mt-1 flex items-center space-x-4 p-2 border border-gray-200 rounded-md bg-gray-50">

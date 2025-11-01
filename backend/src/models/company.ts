@@ -151,6 +151,8 @@ export const updateCompanySettings = async (
     branches?: string[];
     logoUrl?: string | null;
     leaveSettings?: Record<string, number>;
+    primaryContactEmail?: string | null;
+    metadataPatch?: Record<string, string | null>;
   }
 ): Promise<Company> => {
   const existing = await getCompanyById(companyId);
@@ -160,6 +162,21 @@ export const updateCompanySettings = async (
 
   const nextBranches = payload.branches ?? existing.branches;
   const nextLeaveSettings = payload.leaveSettings ?? existing.leave_settings;
+  const nextMetadata = (() => {
+    const current = existing.metadata ?? {};
+    if (!payload.metadataPatch) {
+      return current;
+    }
+    const updated = { ...current } as Record<string, unknown>;
+    Object.entries(payload.metadataPatch).forEach(([key, value]) => {
+      if (value === null) {
+        delete updated[key];
+      } else {
+        updated[key] = value;
+      }
+    });
+    return updated;
+  })();
 
   const result = await pool.query(
     `UPDATE companies
@@ -169,8 +186,10 @@ export const updateCompanySettings = async (
             branches = $4::jsonb,
             logo_url = $5,
             leave_settings = $6::jsonb,
+            primary_contact_email = $7,
+            metadata = $8::jsonb,
             updated_at = NOW()
-      WHERE id = $7
+      WHERE id = $9
       RETURNING *`,
     [
       payload.name ?? existing.name,
@@ -179,6 +198,8 @@ export const updateCompanySettings = async (
       JSON.stringify(nextBranches),
       payload.logoUrl ?? existing.logo_url,
       JSON.stringify(nextLeaveSettings),
+      payload.primaryContactEmail ?? existing.primary_contact_email,
+      JSON.stringify(nextMetadata),
       companyId,
     ]
   );
