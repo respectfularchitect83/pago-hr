@@ -131,6 +131,25 @@ export interface HRUser {
 }
 
 // New Message Type for two-way communication
+export interface LeaveRequestMetadata {
+  employeeId: string;
+  employeeCode: string;
+  leaveType: LeaveType;
+  startDate: string;
+  endDate: string;
+  leaveDays: number;
+  leaveHours: number;
+  workingDays: number;
+  notes?: string;
+  submittedAt: string;
+}
+
+export type MessageMetadata =
+  | {
+      type: 'leave-request';
+      data: LeaveRequestMetadata;
+    };
+
 export interface Message {
   id: string;
   senderId: string; // 'hr' or employee.id
@@ -140,6 +159,7 @@ export interface Message {
   content: string;
   timestamp: string;
   status: 'unread' | 'read';
+  metadata?: MessageMetadata;
 }
 
 

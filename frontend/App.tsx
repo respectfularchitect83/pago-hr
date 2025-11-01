@@ -80,7 +80,7 @@ const withTenantHeader = (headers: Record<string, string> = {}, tenantSlugOverri
 };
 
 import React, { useState, useCallback } from 'react';
-import { Employee, Company, HRUser, Message, Payslip, LeaveRecord } from './types';
+import { Employee, Company, HRUser, Message, Payslip, LeaveRecord, MessageMetadata } from './types';
 // import { employees as initialEmployees, companyData, hrUsers as initialHrUsers } from './data/mockData';
 import LoginScreen from './components/LoginScreen';
 import PayslipDashboard from './components/PayslipDashboard';
@@ -89,6 +89,7 @@ import AdminDashboard from './components/admin/AdminDashboard';
 import TenantRegistration from './components/TenantRegistration';
 import MarketingLanding from './components/MarketingLanding';
 import MarketingLoginModal from './components/MarketingLoginModal';
+import { appendMetadataToContent, extractMetadataFromContent } from './utils/messageMetadata';
 type TenantRegistrationPayload = {
   companyName: string;
   slug?: string;
@@ -358,6 +359,12 @@ const mapMessageFromApi = (raw: any): Message => {
   const photoUrl = raw?.senderPhotoUrl ?? raw?.sender_photo_url ?? raw?.senderPhotoURL;
   if (photoUrl) {
     mapped.senderPhotoUrl = photoUrl;
+  }
+
+  const { cleanedContent, metadata } = extractMetadataFromContent(mapped.content);
+  mapped.content = cleanedContent;
+  if (metadata) {
+    mapped.metadata = metadata;
   }
 
   return mapped;
@@ -1074,7 +1081,9 @@ const App: React.FC = () => {
     alert('HR user deleted successfully!');
   };
 
-  const handleSendMessage = useCallback(async (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => {
+  const handleSendMessage = useCallback(async (
+    message: Omit<Message, 'id' | 'timestamp' | 'status'> & { metadata?: MessageMetadata },
+  ) => {
     if (!authToken) {
       throw new Error('Not authenticated');
     }
@@ -1084,7 +1093,11 @@ const App: React.FC = () => {
       throw new Error('Message content cannot be empty');
     }
 
-    const payload: Record<string, any> = { content: trimmedContent };
+    const finalContent = message.metadata
+      ? appendMetadataToContent(trimmedContent, message.metadata)
+      : trimmedContent;
+
+    const payload: Record<string, any> = { content: finalContent };
     if (message.recipientId && message.recipientId !== 'hr') {
       payload.recipientId = message.recipientId;
     }
@@ -1163,6 +1176,56 @@ const App: React.FC = () => {
       throw error instanceof Error ? error : new Error('Failed to delete message');
     }
   }, [authToken, applyTenantHeader]);
+
+  const handleCreateLeaveRecordFromMessage = async (
+    message: Message,
+  ): Promise<'created' | 'duplicate'> => {
+    if (!authToken) {
+      throw new Error('Not authenticated');
+    }
+
+    if (!message.metadata || message.metadata.type !== 'leave-request') {
+      throw new Error('Message is missing leave request metadata');
+    }
+
+    const { data } = message.metadata;
+    const targetEmployeeId = data.employeeId || message.senderId;
+    const employee = employees.find(emp => emp.id === targetEmployeeId);
+
+    if (!employee) {
+      throw new Error('Employee not found for leave request');
+    }
+
+    const alreadyExists = employee.leaveRecords.some(record =>
+      record.type === data.leaveType && record.startDate === data.startDate && record.endDate === data.endDate,
+    );
+
+    if (alreadyExists) {
+      return 'duplicate';
+    }
+
+    const days = Number.isFinite(data.leaveDays) ? Number(data.leaveDays.toFixed(2)) : Number(data.leaveDays);
+
+    const newRecord: LeaveRecord = {
+      id: `leave-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      type: data.leaveType,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      days: Number.isFinite(days) && days > 0 ? days : Math.max(data.leaveHours / 8, 0),
+      note: data.notes?.trim()
+        ? data.notes
+        : `Imported from leave request submitted on ${new Date(data.submittedAt).toLocaleDateString()}`,
+    };
+
+    const updatedEmployee: Employee = {
+      ...employee,
+      leaveRecords: [...(employee.leaveRecords ?? []), newRecord],
+    };
+
+    await handleUpdateEmployee(updatedEmployee);
+
+    return 'created';
+  };
   
   const handleTenantRegistration = useCallback(async (payload: TenantRegistrationPayload): Promise<TenantRegistrationResult> => {
     const sanitizedSlug = payload.slug ? sanitizeTenantSlug(payload.slug) : sanitizeTenantSlug(payload.companyName);
@@ -1294,7 +1357,8 @@ const App: React.FC = () => {
         onDeletePayslip={handleDeletePayslip}
                 onUpdateMessageStatus={handleUpdateMessageStatus}
                 onSendMessage={handleSendMessage}
-        onDeleteMessage={handleDeleteMessage}
+  onDeleteMessage={handleDeleteMessage}
+  onCreateLeaveRecordFromMessage={handleCreateLeaveRecordFromMessage}
                 currentUser={currentUser}
             />
         );

@@ -10,18 +10,18 @@ const baseTierCards = [
     name: 'Starter',
     price: 'Free trial for 7 days',
     description: 'Ideal for households and first-time payroll teams.',
-    bullets: ['Up to 3 employees', 'Automated payslips', 'Leave management'],
+    bullets: ['Namibia and South Africa compliant','Up to 3 employees', 'Automated payslips', 'Leave management'],
   },
   {
     name: 'Growing Business',
     price: 'US$ 4.99 / employee',
     description: 'Full HR suite for modern multi-branch teams.',
-    bullets: ['Ideal for your small business', 'Leave & overtime', 'Employee Login'],
+    bullets: ['Namibia and South Africa compliant','Ideal for your small business', 'Leave & overtime', 'Employee Login'],
   },
   {
     name: 'Customised',
     price: 'Let’s chat',
-    description: 'We co-pilot payroll and HR alongside your finance team.',
+    description: 'We co-pilot payroll and HR alongside your team.',
     bullets: ['Dedicated specialist', 'Custom workflows', 'Priority support'],
   },
 ];

@@ -1,11 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Employee, Message, LeaveType, Company, LeaveDurationBreakdown } from '../../types';
+import { Employee, Message, LeaveType, Company, LeaveDurationBreakdown, MessageMetadata } from '../../types';
 import { calculateLeaveDuration, calculateLeaveBalances } from '../../utils/leaveCalculations';
 
 interface LeaveApplicationViewProps {
     employee: Employee;
     companyInfo: Company;
-    onSendMessage: (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => Promise<void> | void;
+    onSendMessage: (
+        message: Omit<Message, 'id' | 'timestamp' | 'status'> & { metadata?: MessageMetadata },
+    ) => Promise<void> | void;
     onApplicationSent: () => void;
 }
 
@@ -86,6 +88,22 @@ Reason/Notes:
 ${leaveDetails.notes || 'No reason provided.'}
         `.trim();
         
+        const metadata: MessageMetadata = {
+            type: 'leave-request',
+            data: {
+                employeeId: employee.id,
+                employeeCode: employee.employeeId,
+                leaveType: leaveDetails.type,
+                startDate: leaveDetails.startDate,
+                endDate: leaveDetails.endDate,
+                leaveDays: Number(leaveSummary.leaveDays.toFixed(2)),
+                leaveHours: Number(leaveSummary.leaveHours.toFixed(2)),
+                workingDays: leaveSummary.workingDays,
+                notes: leaveDetails.notes.trim() || undefined,
+                submittedAt: new Date().toISOString(),
+            },
+        };
+
         try {
             await Promise.resolve(onSendMessage({
                 senderId: employee.id,
@@ -93,6 +111,7 @@ ${leaveDetails.notes || 'No reason provided.'}
                 senderName: employee.name,
                 senderPhotoUrl: employee.photoUrl,
                 content: messageContent,
+                metadata,
             }));
 
             setIsSubmitted(true);

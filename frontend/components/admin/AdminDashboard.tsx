@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Employee, Company, HRUser, Message, Payslip } from '../../types';
+import { Employee, Company, HRUser, Message, Payslip, MessageMetadata } from '../../types';
 import AdminEmployeeList from './AdminEmployeeList';
 import AdminEmployeeDetail from './AdminEmployeeDetail';
 import LogoutIcon from '../icons/LogoutIcon';
@@ -26,8 +26,11 @@ interface AdminDashboardProps {
   onUpdatePayslip: (employeeId: string, payslip: Payslip) => Promise<Payslip>;
   onDeletePayslip: (employeeId: string, payslipId: string) => Promise<void>;
   onUpdateMessageStatus: (messageId: string, status: 'read' | 'unread') => Promise<void> | void;
-  onSendMessage: (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => Promise<void> | void;
+  onSendMessage: (
+    message: Omit<Message, 'id' | 'timestamp' | 'status'> & { metadata?: MessageMetadata },
+  ) => Promise<void> | void;
   onDeleteMessage: (messageId: string) => Promise<void> | void;
+  onCreateLeaveRecordFromMessage: (message: Message) => Promise<'created' | 'duplicate'>;
 }
 
 type AdminView = 'employees' | 'leave' | 'messages' | 'reports' | 'settings';
@@ -76,7 +79,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     onDeleteHRUser,
     onUpdateMessageStatus,
     onSendMessage,
-    onDeleteMessage,
+  onDeleteMessage,
+  onCreateLeaveRecordFromMessage,
 }) => {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [adminView, setAdminView] = useState<AdminView>('employees');
@@ -145,6 +149,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   onUpdateMessageStatus={onUpdateMessageStatus} 
                   onSendMessage={onSendMessage}
                   onDeleteMessage={onDeleteMessage}
+                  onCreateLeaveRecord={onCreateLeaveRecordFromMessage}
                   currentUser={currentUser}
                   employees={employees}
                 />;

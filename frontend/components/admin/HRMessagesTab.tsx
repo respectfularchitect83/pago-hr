@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Message, HRUser, Employee } from '../../types';
+import { Message, HRUser, Employee, MessageMetadata } from '../../types';
 import TrashIcon from '../icons/TrashIcon';
 
 interface HRMessagesTabProps {
@@ -7,8 +7,11 @@ interface HRMessagesTabProps {
     employees: Employee[];
     currentUser: HRUser;
     onUpdateMessageStatus: (messageId: string, status: 'read' | 'unread') => Promise<void> | void;
-    onSendMessage: (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => Promise<void> | void;
+    onSendMessage: (
+        message: Omit<Message, 'id' | 'timestamp' | 'status'> & { metadata?: MessageMetadata },
+    ) => Promise<void> | void;
     onDeleteMessage: (messageId: string) => Promise<void> | void;
+    onCreateLeaveRecord: (message: Message) => Promise<'created' | 'duplicate'>;
 }
 
 interface Conversation {
@@ -19,10 +22,20 @@ interface Conversation {
     unreadCount: number;
 }
 
-const HRMessagesTab: React.FC<HRMessagesTabProps> = ({ messages, employees, currentUser, onUpdateMessageStatus, onSendMessage, onDeleteMessage }) => {
+const HRMessagesTab: React.FC<HRMessagesTabProps> = ({
+    messages,
+    employees,
+    currentUser,
+    onUpdateMessageStatus,
+    onSendMessage,
+    onDeleteMessage,
+    onCreateLeaveRecord,
+}) => {
     const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
     const [replyContent, setReplyContent] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const [processingMessageId, setProcessingMessageId] = useState<string | null>(null);
+    const [processedMessageResults, setProcessedMessageResults] = useState<Record<string, 'created' | 'duplicate'>>({});
 
     const conversations = useMemo(() => {
         const conversationsMap = new Map<string, Conversation>();
@@ -125,11 +138,36 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({ messages, employees, curr
         if (!confirmation) {
             return;
         }
+
         try {
             await Promise.resolve(onDeleteMessage(messageId));
         } catch (error) {
             console.error('Failed to delete message', error);
             alert('Failed to delete message. Please try again.');
+        }
+    };
+
+    const handleCreateLeave = async (message: Message) => {
+        if (message.metadata?.type !== 'leave-request') {
+            return;
+        }
+        if (processingMessageId) {
+            return;
+        }
+        setProcessingMessageId(message.id);
+        try {
+            const result = await Promise.resolve(onCreateLeaveRecord(message));
+            setProcessedMessageResults(prev => ({ ...prev, [message.id]: result }));
+            if (result === 'created') {
+                alert('Leave record created from this request.');
+            } else {
+                alert('A matching leave record already exists. No duplicate was created.');
+            }
+        } catch (error) {
+            console.error('Failed to create leave record from message', error);
+            alert('Failed to create leave record. Please try again.');
+        } finally {
+            setProcessingMessageId(null);
         }
     };
 
@@ -177,13 +215,34 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({ messages, employees, curr
                                         <img src={msg.senderPhotoUrl} alt={msg.senderName} className="h-8 w-8 rounded-full" />
                                     )}
                                     <div className="relative flex items-end gap-2">
-                                        <div className={`max-w-md p-3 rounded-lg ${msg.senderId === 'hr' ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-800'}`}>
-                                            <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                                            <p className={`text-xs mt-1 opacity-70 ${msg.senderId === 'hr' ? 'text-right' : 'text-left'}`}>{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                                        <div className="flex flex-col gap-2">
+                                            <div className={`max-w-md p-3 rounded-lg ${msg.senderId === 'hr' ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-800'}`}>
+                                                <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                                                <p className={`text-xs mt-1 opacity-70 ${msg.senderId === 'hr' ? 'text-right' : 'text-left'}`}>{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                                            </div>
+                                            {msg.metadata?.type === 'leave-request' && msg.senderId !== 'hr' && (
+                                                <div className="flex flex-col gap-1 text-xs text-gray-600">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { void handleCreateLeave(msg); }}
+                                                        disabled={processingMessageId === msg.id}
+                                                        className="inline-flex items-center justify-center gap-2 self-start rounded-md border border-gray-300 bg-white px-3 py-1 font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                                    >
+                                                        {processingMessageId === msg.id ? 'Creating…' : 'Create leave record'}
+                                                    </button>
+                                                    {processedMessageResults[msg.id] && (
+                                                        <span className="text-gray-500">
+                                                            {processedMessageResults[msg.id] === 'created'
+                                                                ? 'Leave record created for this request.'
+                                                                : 'Matching leave record already exists.'}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                         <button
                                             type="button"
-                                            onClick={() => handleDeleteMessage(msg.id)}
+                                            onClick={() => { void handleDeleteMessage(msg.id); }}
                                             className={`opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-600 focus-visible:opacity-100 p-1`}
                                             aria-label="Delete message"
                                         >

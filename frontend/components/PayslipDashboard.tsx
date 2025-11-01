@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Employee, Payslip, Company, Message } from '../types';
+import { Employee, Payslip, Company, Message, MessageMetadata } from '../types';
 import PayslipDetail from './PayslipDetail';
 import Profile from './Profile';
 import DashboardHeader from './DashboardHeader';
@@ -12,7 +12,9 @@ interface PayslipDashboardProps {
   companyInfo: Company;
   messages: Message[];
   onLogout: () => void;
-  onSendMessage: (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => Promise<void> | void;
+  onSendMessage: (
+    message: Omit<Message, 'id' | 'timestamp' | 'status'> & { metadata?: MessageMetadata },
+  ) => Promise<void> | void;
   onUpdateMessageStatus: (messageId: string, status: 'read' | 'unread') => Promise<void> | void;
   onDeleteMessage: (messageId: string) => Promise<void> | void;
 }

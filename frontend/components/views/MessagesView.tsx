@@ -1,12 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Employee, Message } from '../../types';
+import { Employee, Message, MessageMetadata } from '../../types';
 import PlusIcon from '../icons/PlusIcon';
 import TrashIcon from '../icons/TrashIcon';
 
 interface MessagesViewProps {
     employee: Employee;
     messages: Message[];
-    onSendMessage: (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => Promise<void> | void;
+    onSendMessage: (
+        message: Omit<Message, 'id' | 'timestamp' | 'status'> & { metadata?: MessageMetadata },
+    ) => Promise<void> | void;
     onUpdateMessageStatus: (messageId: string, status: 'read' | 'unread') => Promise<void> | void;
     onDeleteMessage?: (messageId: string) => Promise<void> | void;
 }
