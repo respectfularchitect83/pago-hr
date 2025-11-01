@@ -716,6 +716,70 @@ const App: React.FC = () => {
     }
   }, [currentUser]);
 
+  React.useEffect(() => {
+    if (!authToken || !currentUser) {
+      return;
+    }
+
+    let cancelled = false;
+    let activeController: AbortController | null = null;
+
+    const refreshMessages = async () => {
+      activeController?.abort();
+      const controller = new AbortController();
+      activeController = controller;
+
+      try {
+        const response = await fetch(`${API_URL}/api/messages`, {
+          headers: applyTenantHeader({ Authorization: `Bearer ${authToken}` }),
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          const message = await extractErrorMessage(response);
+          throw new Error(message || 'Failed to refresh messages');
+        }
+
+        const data = await response.json();
+        if (cancelled) {
+          return;
+        }
+
+        if (Array.isArray(data)) {
+          setMessages(data.map(mapMessageFromApi));
+        } else {
+          setMessages([]);
+        }
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return;
+        }
+
+        console.error('Failed to refresh messages', error);
+      } finally {
+        if (activeController === controller) {
+          activeController = null;
+        }
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      void refreshMessages();
+    }, 15000);
+
+    void refreshMessages();
+
+    return () => {
+      cancelled = true;
+      activeController?.abort();
+      window.clearInterval(intervalId);
+    };
+  }, [authToken, currentUser, applyTenantHeader]);
+
 
   // Employee login handler with password
   const handleLoginSuccess = useCallback(async (employeeId: string, password: string, tenantSlugOverride?: string): Promise<boolean> => {
