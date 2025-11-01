@@ -318,7 +318,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({
                         )}
                     </div>
                 </aside>
-                <section className="flex h-full max-h-full flex-col">
+                <section className="flex h-full max-h-full flex-col overflow-hidden">
                     {selectedConversation ? (
                         <>
                             <div className="flex items-center justify-between border-b border-gray-200 pb-3">
