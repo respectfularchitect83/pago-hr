@@ -140,21 +140,6 @@ const AdminEmployeeList: React.FC<AdminEmployeeListProps> = ({ employees, onSele
     }));
   }, [birthdayReminders]);
 
-  const renderReminderText = (entries: { employee: Employee; birthday: Date; nextBirthday: Date; daysUntil: number }[], includeDate = false) => {
-    if (entries.length === 0) {
-      return 'None';
-    }
-    const formatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
-    return entries
-      .map(entry => {
-        if (!includeDate || entry.daysUntil === 0) {
-          return entry.employee.name;
-        }
-        return `${entry.employee.name} (${formatter.format(entry.nextBirthday)})`;
-      })
-      .join(', ');
-  };
-
   const filteredEmployees = useMemo(() => {
     const normalizedSearch = searchTerm.toLowerCase();
     return employees
@@ -185,34 +170,31 @@ const AdminEmployeeList: React.FC<AdminEmployeeListProps> = ({ employees, onSele
         <div className="flex flex-col gap-2">
           <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4">
             <h2 className="text-xl font-bold text-gray-800">Manage Employees</h2>
-            <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-6 flex-wrap">
               {birthdayHighlights.length === 0 ? (
                 <span className="text-xs text-gray-500">No birthdays on the horizon</span>
               ) : (
                 birthdayHighlights.map(({ employee, dateLabel }) => (
                   <div
                     key={`${employee.id}-${dateLabel}`}
-                    className="relative flex h-16 w-16 items-end justify-center"
-                    title={`${employee.name} — ${dateLabel}`}
+                    className="relative flex h-32 w-32 items-center justify-center"
+                    title={`${employee.name} - ${dateLabel}`}
                   >
                     <img
                       src={employee.photoUrl}
                       alt={`${employee.name} profile`}
-                      className="h-14 w-14 rounded-full object-cover shadow-md border border-white"
+                      className="h-28 w-28 rounded-full object-cover shadow-md border-4 border-white"
                     />
-                    <span className="absolute -bottom-1 right-0 rounded-full bg-gray-800 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow">
-                      {dateLabel}
-                    </span>
+                    <div className="absolute inset-0 flex items-end justify-center pb-4">
+                      <span className="rounded-full bg-gray-900 bg-opacity-80 px-3 py-1 text-sm font-semibold text-white shadow">
+                        {dateLabel}
+                      </span>
+                    </div>
                   </div>
                 ))
               )}
             </div>
           </div>
-          {birthdayHighlights.length > 0 && (
-            <p className="text-xs text-gray-500">
-              Today: {renderReminderText(birthdayReminders.todays)} | Upcoming: {renderReminderText(birthdayReminders.upcoming, true)}
-            </p>
-          )}
         </div>
         <button
           onClick={onAddNew}
