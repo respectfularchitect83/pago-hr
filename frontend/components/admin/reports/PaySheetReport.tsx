@@ -52,8 +52,6 @@ const PaySheetReport: React.FC<ReportProps> = ({ employees, startDate, endDate, 
                         name: emp.name,
                         branch: emp.branch || 'N/A',
                         payDate: formatDisplayDate(p.payDate),
-                        periodStart: formatDisplayDate(p.payPeriodStart),
-                        periodEnd: formatDisplayDate(p.payPeriodEnd),
                         bankName: emp.bankDetails.bankName,
                         accountNumber: emp.bankDetails.accountNumber,
                         netPay: Number(netPay.toFixed(2)),
@@ -75,8 +73,6 @@ const PaySheetReport: React.FC<ReportProps> = ({ employees, startDate, endDate, 
                 employeeId: '',
                 branch: '',
                 payDate: '',
-                periodStart: '',
-                periodEnd: '',
                 bankName: '',
                 accountNumber: '',
                 netPay: formattedTotalNetPay,
@@ -108,8 +104,6 @@ const PaySheetReport: React.FC<ReportProps> = ({ employees, startDate, endDate, 
                 { key: 'employeeId', label: 'Employee ID' },
                 { key: 'branch', label: 'Branch' },
                 { key: 'payDate', label: 'Pay Date' },
-                { key: 'periodStart', label: 'Period Start' },
-                { key: 'periodEnd', label: 'Period End' },
                 { key: 'bankName', label: 'Bank' },
                 { key: 'accountNumber', label: 'Account' },
                 { key: 'netPay', label: 'Net Pay', align: 'right' },
@@ -147,7 +141,6 @@ const PaySheetReport: React.FC<ReportProps> = ({ employees, startDate, endDate, 
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pay Date</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bank</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account Number</th>
                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Pay</th>
@@ -159,7 +152,6 @@ const PaySheetReport: React.FC<ReportProps> = ({ employees, startDate, endDate, 
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{row.name} ({row.employeeId})</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.branch}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.payDate}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.periodStart}{row.periodStart && row.periodEnd ? ' - ' : ''}{row.periodEnd}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.bankName}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.accountNumber}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">{formatCurrency(Number(row.netPay || 0))}</td>
@@ -173,7 +165,7 @@ const PaySheetReport: React.FC<ReportProps> = ({ employees, startDate, endDate, 
                     {reportData.length > 0 && (
                         <tfoot className="bg-gray-100">
                             <tr>
-                                <td colSpan={6} className="px-6 py-3 text-right text-sm font-semibold text-gray-700">Total Net Pay</td>
+                                <td colSpan={5} className="px-6 py-3 text-right text-sm font-semibold text-gray-700">Total Net Pay</td>
                                 <td className="px-6 py-3 text-right text-sm font-semibold text-gray-900 font-mono">{formattedTotalNetPay}</td>
                             </tr>
                         </tfoot>
