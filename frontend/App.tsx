@@ -5,6 +5,7 @@ interface ImportMeta {
     VITE_TENANT_SLUG?: string;
     VITE_ROOT_APP_DOMAIN?: string;
     VITE_DEFAULT_TENANT_SLUG?: string;
+    BASE_URL: string;
     [key: string]: any;
   };
 }
@@ -69,6 +70,40 @@ const resolveTenantSlug = (): string => {
 };
 
 const TENANT_SLUG = resolveTenantSlug();
+
+const deriveInitialLoginView = (): 'landing' | 'employee' | 'admin' | 'register' => {
+  if (typeof window === 'undefined') {
+    return 'landing';
+  }
+
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const viewParam = (params.get('view') || '').toLowerCase();
+    if (viewParam === 'admin' || viewParam === 'employee' || viewParam === 'register') {
+      return viewParam as 'admin' | 'employee' | 'register';
+    }
+  } catch (error) {
+    console.warn('Failed to derive initial login view from URL parameters', error);
+  }
+
+  return 'landing';
+};
+
+const buildClassicLoginUrl = (tenantSlug: string, view: 'employee' | 'admin' = 'employee'): string => {
+  const slug = sanitizeTenantSlug(tenantSlug) || 'default';
+
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  const basePath = import.meta.env.BASE_URL || '/';
+  const url = new URL(basePath, window.location.origin);
+  url.search = '';
+  url.hash = '';
+  url.searchParams.set('company', slug);
+  url.searchParams.set('view', view);
+  return url.toString();
+};
 
 const withTenantHeader = (headers: Record<string, string> = {}, tenantSlugOverride?: string): Record<string, string> => {
   const normalized = sanitizeTenantSlug(tenantSlugOverride);
@@ -381,6 +416,8 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<Employee | HRUser | null>(null);
   const [isMarketingLoginOpen, setIsMarketingLoginOpen] = useState(false);
   const [resolvedTenantSlug, setResolvedTenantSlug] = useState<string>(TENANT_SLUG);
+  const [loginView, setLoginView] = useState<'landing' | 'employee' | 'admin' | 'register'>(deriveInitialLoginView);
+  const [lastLoginType, setLastLoginType] = useState<'admin' | 'employee' | null>(null);
 
   const applyTenantHeader = React.useCallback(
     (headers: Record<string, string> = {}, slugOverride?: string) =>
@@ -695,7 +732,10 @@ const App: React.FC = () => {
           setAuthToken(data.token);
         }
 
-        if (data.user.role === 'employee') {
+        const resolvedRole: 'employee' | 'admin' = data.user.role === 'admin' ? 'admin' : 'employee';
+        setLastLoginType(resolvedRole);
+
+        if (resolvedRole === 'employee') {
           setPendingEmployeeId(data.user.employeeId || employeeId);
           setPendingEmployeeEmail(data.user.email || null);
         } else {
@@ -730,6 +770,7 @@ const App: React.FC = () => {
         }
         setPendingEmployeeId(null);
         setPendingEmployeeEmail(null);
+        setLastLoginType('admin');
         const mappedAdmin: HRUser = {
           id: data.user.id ? String(data.user.id) : username,
           username: data.user.email ?? normalizedEmail,
@@ -748,6 +789,9 @@ const App: React.FC = () => {
   }, [applyTenantHeader, resolvedTenantSlug]);
 
   const handleLogout = useCallback(() => {
+    const slugForRedirect = resolvedTenantSlug || TENANT_SLUG;
+    const viewForRedirect: 'employee' | 'admin' = lastLoginType ?? 'employee';
+
     setCurrentUser(null);
     setAuthToken(null);
     setEmployees([]);
@@ -755,8 +799,16 @@ const App: React.FC = () => {
     setPendingEmployeeId(null);
     setPendingEmployeeEmail(null);
     setMessages([]);
-    setResolvedTenantSlug(TENANT_SLUG);
-  }, []);
+    setResolvedTenantSlug(slugForRedirect);
+    setLoginView(viewForRedirect);
+    setIsMarketingLoginOpen(false);
+    setLastLoginType(null);
+
+    if (typeof window !== 'undefined') {
+      const targetUrl = buildClassicLoginUrl(slugForRedirect, viewForRedirect);
+      window.location.href = targetUrl;
+    }
+  }, [resolvedTenantSlug, lastLoginType]);
   
   const handleUpdateEmployee = async (updatedEmployee: Employee): Promise<Employee> => {
     if (!authToken) {
@@ -1179,7 +1231,7 @@ const App: React.FC = () => {
 
   const handleCreateLeaveRecordFromMessage = async (
     message: Message,
-  ): Promise<'created' | 'duplicate'> => {
+  ): Promise<'created' | 'duplicate' | 'created-local'> => {
     if (!authToken) {
       throw new Error('Not authenticated');
     }
@@ -1236,9 +1288,34 @@ const App: React.FC = () => {
       leaveRecords: [...(employee.leaveRecords ?? []), newRecord],
     };
 
-    await handleUpdateEmployee(updatedEmployee);
+    let persisted = false;
+    try {
+      await handleUpdateEmployee(updatedEmployee);
+      persisted = true;
+    } catch (error) {
+      console.error('Failed to persist leave record to the server. Falling back to local update.', error);
+      setEmployees(prev => prev.map(emp => {
+        if (emp.id !== updatedEmployee.id) {
+          return emp;
+        }
+        return {
+          ...emp,
+          leaveRecords: [...(emp.leaveRecords ?? []), newRecord],
+        };
+      }));
 
-    return 'created';
+      setCurrentUser(prev => {
+        if (prev && 'leaveRecords' in prev && prev.id === updatedEmployee.id) {
+          return {
+            ...prev,
+            leaveRecords: [...(prev.leaveRecords ?? []), newRecord],
+          };
+        }
+        return prev;
+      });
+    }
+
+    return persisted ? 'created' : 'created-local';
   };
   
   const handleTenantRegistration = useCallback(async (payload: TenantRegistrationPayload): Promise<TenantRegistrationResult> => {
@@ -1273,9 +1350,6 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // A bit of a hack to switch between login screens without a router
-  const [loginView, setLoginView] = useState<'landing' | 'employee' | 'admin' | 'register'>('landing');
-
   const openSignupFlow = useCallback(() => {
     setIsMarketingLoginOpen(false);
     setLoginView('register');
@@ -1283,6 +1357,17 @@ const App: React.FC = () => {
 
   const handleOpenMarketingLogin = useCallback(() => {
     setIsMarketingLoginOpen(true);
+  }, []);
+
+  const handleLaunchClassicLogin = useCallback((tenantSlug: string) => {
+    const slug = sanitizeTenantSlug(tenantSlug) || 'default';
+    setResolvedTenantSlug(slug);
+    setIsMarketingLoginOpen(false);
+
+    if (typeof window !== 'undefined') {
+      const targetUrl = buildClassicLoginUrl(slug, 'employee');
+      window.open(targetUrl, '_blank', 'noopener,noreferrer');
+    }
   }, []);
 
 
@@ -1301,13 +1386,7 @@ const App: React.FC = () => {
               <MarketingLoginModal
                 isOpen={isMarketingLoginOpen}
                 onClose={() => setIsMarketingLoginOpen(false)}
-                onEmployeeLogin={handleLoginSuccess}
-                onAdminLogin={handleAdminLoginSuccess}
-                onSignup={openSignupFlow}
-                onUseClassicLogin={() => {
-                  setIsMarketingLoginOpen(false);
-                  setLoginView('admin');
-                }}
+                onLaunchClassicLogin={handleLaunchClassicLogin}
                 onResolveTenantSlug={slug => {
                   const cleaned = sanitizeTenantSlug(slug);
                   if (cleaned) {

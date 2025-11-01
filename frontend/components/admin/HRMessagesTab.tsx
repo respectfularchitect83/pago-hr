@@ -11,7 +11,7 @@ interface HRMessagesTabProps {
         message: Omit<Message, 'id' | 'timestamp' | 'status'> & { metadata?: MessageMetadata },
     ) => Promise<void> | void;
     onDeleteMessage: (messageId: string) => Promise<void> | void;
-    onCreateLeaveRecord: (message: Message) => Promise<'created' | 'duplicate'>;
+    onCreateLeaveRecord: (message: Message) => Promise<'created' | 'duplicate' | 'created-local'>;
 }
 
 type LeaveActionStatus = 'approved' | 'declined' | 'duplicate';
@@ -189,9 +189,9 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({
         try {
             const creationResult = await Promise.resolve(onCreateLeaveRecord(message));
 
-            const approvedContent = creationResult === 'created'
-                ? `Hi ${employeeName}, your leave request from ${startStr} to ${endStr} has been approved.`
-                : `Hi ${employeeName}, your leave request from ${startStr} to ${endStr} was already recorded. No further action is needed.`;
+            const approvedContent = creationResult === 'duplicate'
+                ? `Hi ${employeeName}, your leave request from ${startStr} to ${endStr} was already recorded. No further action is needed.`
+                : `Hi ${employeeName}, your leave request from ${startStr} to ${endStr} has been approved.`;
 
             await Promise.resolve(onSendMessage({
                 senderId: 'hr',
@@ -201,13 +201,17 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({
                 content: approvedContent,
             }));
 
+            const details = creationResult === 'created'
+                ? 'Leave approved and record created. Employee notified automatically.'
+                : creationResult === 'created-local'
+                    ? 'Leave approved and recorded locally. Employee notified automatically, but syncing to the server failed.'
+                    : 'Leave request already existed. Employee notified automatically.';
+
             setProcessedMessageResults(prev => ({
                 ...prev,
                 [message.id]: {
-                    status: creationResult === 'created' ? 'approved' : 'duplicate',
-                    details: creationResult === 'created'
-                        ? 'Leave approved and record created. Employee notified.'
-                        : 'Leave request already existed. Employee notified.',
+                    status: creationResult === 'duplicate' ? 'duplicate' : 'approved',
+                    details,
                 },
             }));
         } catch (error) {
@@ -325,9 +329,9 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({
                                                         </button>
                                                     </div>
                                                     {processedMessageResults[msg.id] && (
-                                                        <span className="text-gray-500">
+                                                        <div className="max-w-sm rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-left text-gray-600">
                                                             {processedMessageResults[msg.id].details}
-                                                        </span>
+                                                        </div>
                                                     )}
                                                 </div>
                                             )}

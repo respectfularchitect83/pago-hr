@@ -30,7 +30,7 @@ interface AdminDashboardProps {
     message: Omit<Message, 'id' | 'timestamp' | 'status'> & { metadata?: MessageMetadata },
   ) => Promise<void> | void;
   onDeleteMessage: (messageId: string) => Promise<void> | void;
-  onCreateLeaveRecordFromMessage: (message: Message) => Promise<'created' | 'duplicate'>;
+  onCreateLeaveRecordFromMessage: (message: Message) => Promise<'created' | 'duplicate' | 'created-local'>;
 }
 
 type AdminView = 'employees' | 'leave' | 'messages' | 'reports' | 'settings';
