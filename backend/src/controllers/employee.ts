@@ -6,6 +6,35 @@ import { AuthRequest } from '../middleware/auth';
 import { mapPayslipRow } from './payslip';
 import { TenantRequest } from '../middleware/tenant';
 
+const sanitizeEmployeeIdentifier = (value: unknown): string => {
+  if (value === undefined || value === null) {
+    return '';
+  }
+  return String(value).trim();
+};
+
+const normalizeEmailSegment = (value: string): string => {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48);
+};
+
+const buildFallbackEmployeeEmail = (
+  companySlug: string | undefined,
+  companyId: number,
+  employeeDbId: number,
+  employeeIdentifier: string,
+): string => {
+  const localSegmentBase = normalizeEmailSegment(employeeIdentifier) || `emp-${employeeDbId}`;
+  const localPart = `${localSegmentBase}-c${companyId}`.slice(0, 64);
+  const slugSegment = normalizeEmailSegment(companySlug ?? '') || `company-${companyId}`;
+  const domain = `${slugSegment}.employees.pago.local`;
+  return `${localPart}@${domain}`;
+};
+
 export const listEmployees = async (req: TenantRequest, res: Response) => {
   try {
     const companyId = req.tenant?.id;
@@ -58,6 +87,11 @@ export const createEmployee = async (req: AuthRequest, res: Response) => {
       uifnumber,
     } = req.body;
 
+    const normalizedEmployeeId = sanitizeEmployeeIdentifier(employeeid);
+    if (!normalizedEmployeeId) {
+      return res.status(400).json({ error: 'Employee ID is required' });
+    }
+
     const toNumberOrNull = (value: any) => {
       if (value === undefined || value === null || value === '') {
         return null;
@@ -72,8 +106,8 @@ export const createEmployee = async (req: AuthRequest, res: Response) => {
     const normalizedTerminationDate = terminationdate && terminationdate !== '' ? terminationdate : null;
     const parsedBasicSalary = toNumberOrNull(basicsalary);
     const parsedAppointmentHours = toNumberOrNull(appointmenthours);
-    const joinDate = startdate && startdate !== '' ? startdate : new Date().toISOString().split('T')[0];
-    const emailLower = email ? email.toLowerCase() : null;
+  const joinDate = startdate && startdate !== '' ? startdate : new Date().toISOString().split('T')[0];
+  const emailLower = email ? String(email).trim().toLowerCase() : null;
     const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
     const normalizedLeaveRecords = leaverecords
       ? (typeof leaverecords === 'string' ? leaverecords : JSON.stringify(leaverecords))
@@ -124,7 +158,7 @@ export const createEmployee = async (req: AuthRequest, res: Response) => {
           RETURNING *`,
         [
           companyId,
-          employeeid,
+          normalizedEmployeeId,
           firstname,
           lastname,
           emailToPersist,
@@ -148,61 +182,72 @@ export const createEmployee = async (req: AuthRequest, res: Response) => {
         ]
       );
 
-      if (emailToPersist) {
-        let passwordForUpsert = hashedPassword;
-        if (!passwordForUpsert) {
-          const existingUser = await client.query(
-            'SELECT password, company_id FROM users WHERE email = $1',
-            [emailToPersist]
-          );
+      const createdEmployee = result.rows[0];
+      const fallbackEmail = buildFallbackEmployeeEmail(
+        req.tenant?.slug,
+        companyId,
+        createdEmployee.id,
+        normalizedEmployeeId,
+      );
+      const loginEmail = (emailToPersist ?? fallbackEmail).toLowerCase();
 
-          if (
-            existingUser.rows.length > 0 &&
-            existingUser.rows[0].company_id !== companyId
-          ) {
-            await client.query('ROLLBACK');
-            return res.status(409).json({ error: 'Email already associated with another company' });
-          }
-
-          passwordForUpsert = existingUser.rows[0]?.password || null;
-        }
-
-        if (!passwordForUpsert) {
-          await client.query('ROLLBACK');
-          return res.status(400).json({ error: 'Password is required to create or update user account' });
-        }
-
-        await client.query(
-          `INSERT INTO users (email, password, role, first_name, last_name, employee_id, department, position, join_date, photo_url, company_id)
-           VALUES ($1, $2, 'employee', $3, $4, $5, $6, $7, $8, $9, $10)
-           ON CONFLICT (email) DO UPDATE
-             SET password = COALESCE(EXCLUDED.password, users.password),
-                 first_name = EXCLUDED.first_name,
-                 last_name = EXCLUDED.last_name,
-                 employee_id = EXCLUDED.employee_id,
-                 department = EXCLUDED.department,
-                 position = EXCLUDED.position,
-                 join_date = COALESCE(EXCLUDED.join_date, users.join_date),
-                 photo_url = COALESCE(EXCLUDED.photo_url, users.photo_url),
-                 company_id = EXCLUDED.company_id
-          `,
-          [
-            emailToPersist,
-            passwordForUpsert,
-            firstname,
-            lastname,
-            employeeid,
-            department,
-            position,
-            joinDate,
-            photo_url || null,
-            companyId,
-          ]
-        );
+      if (!hashedPassword) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Password is required to create or update user account' });
       }
 
+      if (emailToPersist) {
+        const existingByEmail = await client.query(
+          'SELECT id, company_id, employee_id FROM users WHERE email = $1 LIMIT 1',
+          [emailToPersist]
+        );
+
+        if (
+          existingByEmail.rows.length > 0 &&
+          (existingByEmail.rows[0].company_id !== companyId ||
+            (existingByEmail.rows[0].employee_id && existingByEmail.rows[0].employee_id !== normalizedEmployeeId))
+        ) {
+          await client.query('ROLLBACK');
+          return res.status(409).json({ error: 'Email already associated with another user' });
+        }
+      }
+
+      const resolvedFirstName = firstname || createdEmployee.firstname || 'Employee';
+      const resolvedLastName = lastname || createdEmployee.lastname || 'User';
+      const resolvedDepartment = (department ?? createdEmployee.department) || null;
+      const resolvedPosition = (position ?? createdEmployee.position) || null;
+      const resolvedPhotoUrl = photo_url || createdEmployee.photo_url || null;
+
+      await client.query(
+        `INSERT INTO users (email, password, role, first_name, last_name, employee_id, department, position, join_date, photo_url, company_id)
+         VALUES ($1, $2, 'employee', $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (employee_id) DO UPDATE
+           SET email = EXCLUDED.email,
+               password = COALESCE(EXCLUDED.password, users.password),
+               first_name = EXCLUDED.first_name,
+               last_name = EXCLUDED.last_name,
+               department = EXCLUDED.department,
+               position = EXCLUDED.position,
+               join_date = COALESCE(EXCLUDED.join_date, users.join_date),
+               photo_url = COALESCE(EXCLUDED.photo_url, users.photo_url),
+               company_id = EXCLUDED.company_id
+        `,
+        [
+          loginEmail,
+          hashedPassword,
+          resolvedFirstName,
+          resolvedLastName,
+          normalizedEmployeeId,
+          resolvedDepartment,
+          resolvedPosition,
+          joinDate,
+          resolvedPhotoUrl,
+          companyId,
+        ]
+      );
+
       await client.query('COMMIT');
-      res.status(201).json(result.rows[0]);
+      res.status(201).json(createdEmployee);
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
@@ -345,7 +390,7 @@ export const updateEmployee = async (req: AuthRequest, res: Response) => {
     const normalizedTerminationDate = terminationdate && terminationdate !== '' ? terminationdate : null;
     const parsedBasicSalary = toNumberOrNull(basicsalary);
     const parsedAppointmentHours = toNumberOrNull(appointmenthours);
-    const emailLower = email ? email.toLowerCase() : null;
+    const emailLower = email ? String(email).trim().toLowerCase() : null;
     const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
     const normalizedLeaveRecords = leaverecords
       ? (typeof leaverecords === 'string' ? leaverecords : JSON.stringify(leaverecords))
@@ -368,6 +413,13 @@ export const updateEmployee = async (req: AuthRequest, res: Response) => {
         return res.status(404).json({ error: 'Employee not found' });
       }
       const existingEmployee = existingResult.rows[0];
+      const requestedEmployeeId = sanitizeEmployeeIdentifier(employeeid);
+      const existingEmployeeId = sanitizeEmployeeIdentifier(existingEmployee.employeeid);
+      const resolvedEmployeeId = requestedEmployeeId || existingEmployeeId;
+      if (!resolvedEmployeeId) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Employee ID is required' });
+      }
 
       const emailToPersist = emailLower ?? (existingEmployee.email ? existingEmployee.email.toLowerCase() : null);
 
@@ -398,7 +450,7 @@ export const updateEmployee = async (req: AuthRequest, res: Response) => {
       WHERE id=$22 AND company_id=$23
       RETURNING *`,
         [
-          employeeid,
+          resolvedEmployeeId,
           firstname,
           lastname,
           emailToPersist,
@@ -426,63 +478,100 @@ export const updateEmployee = async (req: AuthRequest, res: Response) => {
 
       const updatedEmployee = updateResult.rows[0];
 
-      const targetEmail = (emailToPersist || existingEmployee.email || '').toLowerCase();
-      if (targetEmail) {
-        const joinDate = startdate && startdate !== ''
-          ? startdate
-          : updatedEmployee.startdate || existingEmployee.startdate || new Date().toISOString().split('T')[0];
+      const joinDateForUser = startdate && startdate !== ''
+        ? startdate
+        : updatedEmployee.startdate || existingEmployee.startdate || new Date().toISOString().split('T')[0];
+      const fallbackEmail = buildFallbackEmployeeEmail(
+        req.tenant?.slug,
+        companyId,
+        updatedEmployee.id,
+        resolvedEmployeeId,
+      );
+      const accountEmail = (emailToPersist ?? fallbackEmail).toLowerCase();
 
-        let passwordForUpsert = hashedPassword;
-        if (!passwordForUpsert) {
-          const existingUser = await client.query('SELECT password, company_id FROM users WHERE email = $1', [targetEmail]);
+      if (emailLower) {
+        const emailConflict = await client.query(
+          'SELECT id, company_id, employee_id FROM users WHERE email = $1 LIMIT 1',
+          [emailLower]
+        );
+        if (
+          emailConflict.rows.length > 0 &&
+          (emailConflict.rows[0].company_id !== companyId ||
+            (emailConflict.rows[0].employee_id && emailConflict.rows[0].employee_id !== resolvedEmployeeId))
+        ) {
+          await client.query('ROLLBACK');
+          return res.status(409).json({ error: 'Email already associated with another user' });
+        }
+      }
 
-          if (
-            existingUser.rows.length > 0 &&
-            existingUser.rows[0].company_id !== companyId
-          ) {
-            await client.query('ROLLBACK');
-            return res.status(409).json({ error: 'Email already associated with another company' });
-          }
+      const existingUserResult = await client.query(
+        'SELECT * FROM users WHERE employee_id = $1 AND company_id = $2 LIMIT 1',
+        [resolvedEmployeeId, companyId]
+      );
+      const existingUser = existingUserResult.rows[0] ?? null;
 
-          passwordForUpsert = existingUser.rows[0]?.password || null;
+      const resolvedFirstName = firstname || updatedEmployee.firstname || existingEmployee.firstname || 'Employee';
+      const resolvedLastName = lastname || updatedEmployee.lastname || existingEmployee.lastname || 'User';
+      const resolvedDepartment = (department ?? updatedEmployee.department ?? existingEmployee.department) || null;
+      const resolvedPosition = (position ?? updatedEmployee.position ?? existingEmployee.position) || null;
+      const resolvedPhotoUrl = photo_url || updatedEmployee.photo_url || existingEmployee.photo_url || null;
+
+      if (existingUser) {
+        const passwordToPersist = hashedPassword ?? existingUser.password;
+        if (!passwordToPersist) {
+          await client.query('ROLLBACK');
+          return res.status(500).json({ error: 'Unable to update employee credentials' });
         }
 
-        if (!passwordForUpsert) {
-          logger.warn('Skipping user upsert due to missing password', { employeeId: employeeid, email: targetEmail });
-        } else {
+        await client.query(
+          `UPDATE users
+              SET email = $1,
+                  password = $2,
+                  first_name = $3,
+                  last_name = $4,
+                  employee_id = $5,
+                  department = $6,
+                  position = $7,
+                  join_date = $8,
+                  photo_url = $9,
+                  company_id = $10,
+                  updated_at = NOW()
+            WHERE id = $11`,
+          [
+            accountEmail,
+            passwordToPersist,
+            resolvedFirstName,
+            resolvedLastName,
+            resolvedEmployeeId,
+            resolvedDepartment,
+            resolvedPosition,
+            joinDateForUser,
+            resolvedPhotoUrl,
+            companyId,
+            existingUser.id,
+          ]
+        );
+      } else if (hashedPassword) {
         await client.query(
           `INSERT INTO users (email, password, role, first_name, last_name, employee_id, department, position, join_date, photo_url, company_id)
-           VALUES ($1, $2, 'employee', $3, $4, $5, $6, $7, $8, $9, $10)
-           ON CONFLICT (email) DO UPDATE
-             SET password = COALESCE(EXCLUDED.password, users.password),
-                 first_name = EXCLUDED.first_name,
-                 last_name = EXCLUDED.last_name,
-                 employee_id = EXCLUDED.employee_id,
-                 department = EXCLUDED.department,
-                 position = EXCLUDED.position,
-                 join_date = COALESCE(EXCLUDED.join_date, users.join_date),
-                 photo_url = COALESCE(EXCLUDED.photo_url, users.photo_url),
-                 company_id = EXCLUDED.company_id
-          `,
+           VALUES ($1, $2, 'employee', $3, $4, $5, $6, $7, $8, $9, $10)`,
           [
-            targetEmail,
-            passwordForUpsert,
-            firstname || updatedEmployee.firstname || existingEmployee.firstname,
-            lastname || updatedEmployee.lastname || existingEmployee.lastname,
-            updatedEmployee.employeeid || existingEmployee.employeeid,
-            department || updatedEmployee.department || existingEmployee.department,
-            position || updatedEmployee.position || existingEmployee.position,
-            joinDate,
-            photo_url || updatedEmployee.photo_url || existingEmployee.photo_url || null,
+            accountEmail,
+            hashedPassword,
+            resolvedFirstName,
+            resolvedLastName,
+            resolvedEmployeeId,
+            resolvedDepartment,
+            resolvedPosition,
+            joinDateForUser,
+            resolvedPhotoUrl,
             companyId,
           ]
         );
-
-        const previousEmail = existingEmployee.email ? existingEmployee.email.toLowerCase() : null;
-        if (previousEmail && previousEmail !== targetEmail) {
-          await client.query('DELETE FROM users WHERE email = $1 AND company_id = $2', [previousEmail, companyId]);
-        }
-        }
+      } else {
+        logger.warn('Skipping creation of employee user account due to missing password', {
+          employeeId: resolvedEmployeeId,
+        });
       }
 
       await client.query('COMMIT');
@@ -513,6 +602,10 @@ export const deleteEmployee = async (req: AuthRequest, res: Response) => {
     }
 
     const deletedEmployee = result.rows[0];
+    const deletedEmployeeId = sanitizeEmployeeIdentifier(deletedEmployee?.employeeid);
+    if (deletedEmployeeId) {
+      await pool.query('DELETE FROM users WHERE employee_id = $1 AND company_id = $2', [deletedEmployeeId, companyId]);
+    }
     if (deletedEmployee?.email) {
       await pool.query('DELETE FROM users WHERE email = $1 AND company_id = $2', [deletedEmployee.email.toLowerCase(), companyId]);
     }

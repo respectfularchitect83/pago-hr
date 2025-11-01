@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "lint": "npm run lint --prefix frontend"
+  },
   "dependencies": {
     "bcrypt": "^6.0.0"
   }

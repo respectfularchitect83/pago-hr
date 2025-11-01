@@ -42,8 +42,9 @@ export async function createUser(userData: Partial<User> & { company_id: number 
 }
 
 export async function findUserByEmail(email: string, companyId?: number): Promise<User | null> {
-  const params: any[] = [email];
-  let query = 'SELECT * FROM users WHERE email = $1';
+  const normalizedEmail = String(email).trim().toLowerCase();
+  const params: any[] = [normalizedEmail];
+  let query = 'SELECT * FROM users WHERE LOWER(email) = $1';
 
   if (companyId) {
     params.push(companyId);
