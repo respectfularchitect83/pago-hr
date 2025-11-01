@@ -462,6 +462,13 @@ const PayslipDetail: React.FC<PayslipDetailProps> = ({ payslip, employee, compan
 
       <footer className="mt-10 border-t border-gray-200 pt-6 text-center text-xs text-gray-500">
         <p>{companyInfo.address || 'Company address not provided'}</p>
+        {(companyInfo.phoneNumber || companyInfo.emailAddress) && (
+          <p>
+            {companyInfo.phoneNumber ? `Tel: ${companyInfo.phoneNumber}` : ''}
+            {companyInfo.phoneNumber && companyInfo.emailAddress ? ' | ' : ''}
+            {companyInfo.emailAddress ? `Email: ${companyInfo.emailAddress}` : ''}
+          </p>
+        )}
       </footer>
     </div>
   );

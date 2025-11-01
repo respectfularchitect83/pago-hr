@@ -58,6 +58,7 @@ export interface Employee {
   taxNumber: string;
   socialSecurityNumber: string;
   idNumber: string;
+  dateOfBirth?: string;
   phoneNumber: string;
   address: string;
   bankDetails: {
