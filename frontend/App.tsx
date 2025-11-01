@@ -1187,6 +1187,18 @@ const App: React.FC = () => {
       return;
     }
 
+    let previousStatus: Message['status'] | undefined;
+    setMessages(prevMessages => prevMessages.map(msg => {
+      if (msg.id === messageId) {
+        previousStatus = msg.status;
+        if (msg.status === status) {
+          return msg;
+        }
+        return { ...msg, status };
+      }
+      return msg;
+    }));
+
     try {
       const response = await fetch(`${API_URL}/api/messages/${messageId}/status`, {
         method: 'PATCH',
@@ -1207,6 +1219,9 @@ const App: React.FC = () => {
       setMessages(prev => prev.map(msg => (msg.id === mapped.id ? mapped : msg)));
     } catch (error) {
       console.error('Failed to update message status', error);
+      if (previousStatus && previousStatus !== status) {
+        setMessages(prev => prev.map(msg => (msg.id === messageId ? { ...msg, status: previousStatus! } : msg)));
+      }
     }
   }, [authToken, applyTenantHeader]);
 
