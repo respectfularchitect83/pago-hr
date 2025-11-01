@@ -152,7 +152,7 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
             .replace(/'/g, '&#39;');
 
     const ensureValue = (value?: string) => (value && value.trim() ? value.trim() : '');
-    const formatSpacedDate = (value: string) => escapeHtml(value).split('').join(' ');
+    const formatPeriodDate = (value: string) => escapeHtml(value);
     const formatMoney = (value: number) => `N$ ${Number(value || 0).toFixed(2)}`;
 
         const totalDeducted = Number(totalContribution.toFixed(2));
@@ -190,9 +190,9 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
     .form-number { font-weight: bold; text-transform: uppercase; }
     .return-title { text-align: center; font-size: 12px; margin-top: 18px; text-transform: uppercase; }
     .period-block { margin-top: 12px; text-align: center; }
-    .period-dates { display: flex; justify-content: center; gap: 96px; font-size: 13px; font-weight: bold; }
-    .period-date { display: inline-block; letter-spacing: 10px; }
-    .period-to { margin-top: 8px; font-size: 12px; letter-spacing: 12px; }
+    .period-dates { display: flex; justify-content: center; gap: 80px; font-size: 13px; font-weight: bold; }
+    .period-date { display: inline-block; letter-spacing: 0; }
+    .period-to { margin-top: 6px; font-size: 12px; letter-spacing: 2px; }
     .block-letters { text-align: center; font-size: 11px; margin-top: 6px; text-transform: uppercase; }
     .details-table { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 12px; }
     .details-table td { padding: 10px 8px; border: none; }
@@ -213,7 +213,7 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
     .totals-table td { border: 1px solid #000; padding: 8px 6px; }
     .totals-table td.label { font-weight: bold; }
     .totals-table td.amount { text-align: right; width: 20%; }
-      .declaration { margin-top: 28px; font-size: 12px; }
+    .declaration { margin-top: 48px; font-size: 12px; }
       .signature-row { display: flex; justify-content: space-between; margin-top: 26px; font-size: 11px; }
       .signature-cell { width: 32%; text-align: center; }
       .signature-line { border-top: 1px solid #000; margin-bottom: 4px; height: 18px; }
@@ -243,8 +243,8 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
                     <div class="return-title">RETURN ACCOMPANYING PAYMENT OF CONTRIBUTIONS FOR THE PERIOD</div>
                     <div class="period-block">
                         <div class="period-dates">
-                            <span class="period-date">${formatSpacedDate(startDate)}</span>
-                            <span class="period-date">${formatSpacedDate(endDate)}</span>
+                        <span class="period-date">${formatPeriodDate(startDate)}</span>
+                        <span class="period-date">${formatPeriodDate(endDate)}</span>
                         </div>
                         <div class="period-to">T  O</div>
                     </div>
