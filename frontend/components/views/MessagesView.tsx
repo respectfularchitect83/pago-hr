@@ -1,6 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Employee, Message, MessageMetadata } from '../../types';
-import PlusIcon from '../icons/PlusIcon';
 import TrashIcon from '../icons/TrashIcon';
 
 interface MessagesViewProps {
@@ -13,214 +12,397 @@ interface MessagesViewProps {
     onDeleteMessage?: (messageId: string) => Promise<void> | void;
 }
 
-type MessageTab = 'inbox' | 'sent';
+interface ConversationSummary {
+    id: string;
+    counterpartId: string;
+    counterpartName: string;
+    counterpartPhotoUrl: string;
+    messages: Message[];
+    lastMessage?: Message;
+    unreadCount: number;
+}
 
-const MessagesView: React.FC<MessagesViewProps> = ({ employee, messages, onSendMessage, onUpdateMessageStatus, onDeleteMessage }) => {
-    const [activeTab, setActiveTab] = useState<MessageTab>('inbox');
-    const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
-    const [isComposing, setIsComposing] = useState(false);
-    const [composeContent, setComposeContent] = useState('');
+const DEFAULT_HR_NAME = 'HR Admin';
+const DEFAULT_HR_PHOTO = 'https://i.pravatar.cc/150?u=hr';
+
+const getTimestamp = (message: Message): number => new Date(message.timestamp).getTime();
+
+const formatRelativeTime = (date: string): string => {
+    const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+    if (seconds < 60) {
+        return `${Math.max(seconds, 0)} seconds ago`;
+    }
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) {
+        return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+    }
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) {
+        return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+    }
+    const days = Math.floor(hours / 24);
+    if (days < 30) {
+        return `${days} day${days === 1 ? '' : 's'} ago`;
+    }
+    const months = Math.floor(days / 30);
+    if (months < 12) {
+        return `${months} month${months === 1 ? '' : 's'} ago`;
+    }
+    const years = Math.floor(months / 12);
+    return `${years} year${years === 1 ? '' : 's'} ago`;
+};
+
+const MessagesView: React.FC<MessagesViewProps> = ({
+    employee,
+    messages,
+    onSendMessage,
+    onUpdateMessageStatus,
+    onDeleteMessage,
+}) => {
+    const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+    const [draftMessage, setDraftMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    const inboxMessages = useMemo(() => {
-        return messages
-            .filter(msg => msg.recipientId === employee.id)
-            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    }, [messages, employee.id]);
+    const conversations = useMemo<ConversationSummary[]>(() => {
+        const map = new Map<string, ConversationSummary>();
 
-    const sentMessages = useMemo(() => {
-        return messages
-            .filter(msg => msg.senderId === employee.id)
-            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    }, [messages, employee.id]);
-    
-    const handleSelectMessage = (message: Message) => {
-        setSelectedMessage(message);
-        if (message.status === 'unread' && message.recipientId === employee.id) {
-            void Promise.resolve(onUpdateMessageStatus(message.id, 'read'));
+        messages.forEach(message => {
+            const fromEmployee = message.senderId === employee.id;
+            const targetIdRaw = fromEmployee ? message.recipientId : message.senderId;
+            const counterpartId = targetIdRaw && targetIdRaw !== employee.id ? targetIdRaw : 'hr';
+            const counterpartName = !fromEmployee ? (message.senderName || DEFAULT_HR_NAME) : DEFAULT_HR_NAME;
+            const counterpartPhotoUrl = !fromEmployee
+                ? message.senderPhotoUrl || DEFAULT_HR_PHOTO
+                : DEFAULT_HR_PHOTO;
+
+            if (!map.has(counterpartId)) {
+                map.set(counterpartId, {
+                    id: counterpartId,
+                    counterpartId,
+                    counterpartName,
+                    counterpartPhotoUrl,
+                    messages: [message],
+                    lastMessage: message,
+                    unreadCount: !fromEmployee && message.status === 'unread' ? 1 : 0,
+                });
+                return;
+            }
+
+            const conversation = map.get(counterpartId)!;
+            conversation.messages.push(message);
+            if (!fromEmployee && message.status === 'unread') {
+                conversation.unreadCount += 1;
+            }
+            if (!conversation.lastMessage || getTimestamp(message) > getTimestamp(conversation.lastMessage)) {
+                conversation.lastMessage = message;
+                if (!fromEmployee) {
+                    conversation.counterpartName = message.senderName || conversation.counterpartName;
+                    conversation.counterpartPhotoUrl = message.senderPhotoUrl || conversation.counterpartPhotoUrl;
+                }
+            }
+        });
+
+        if (map.size === 0) {
+            map.set('hr', {
+                id: 'hr',
+                counterpartId: 'hr',
+                counterpartName: DEFAULT_HR_NAME,
+                counterpartPhotoUrl: DEFAULT_HR_PHOTO,
+                messages: [],
+                unreadCount: 0,
+            });
         }
-    };
-    
-    const handleSendMessage = async () => {
-        if (!composeContent.trim() || isSending) {
+
+        const result = Array.from(map.values()).map(conversation => ({
+            ...conversation,
+            messages: [...conversation.messages].sort((a, b) => getTimestamp(a) - getTimestamp(b)),
+        }));
+
+        result.sort((a, b) => {
+            const aTime = a.lastMessage ? getTimestamp(a.lastMessage) : 0;
+            const bTime = b.lastMessage ? getTimestamp(b.lastMessage) : 0;
+            return bTime - aTime;
+        });
+
+        return result;
+    }, [messages, employee.id]);
+
+    useEffect(() => {
+        if (selectedConversationId && conversations.some(conversation => conversation.id === selectedConversationId)) {
+            return;
+        }
+        if (conversations.length > 0) {
+            setSelectedConversationId(conversations[0].id);
+        } else {
+            setSelectedConversationId(null);
+        }
+    }, [conversations, selectedConversationId]);
+
+    const selectedConversation = useMemo(
+        () => conversations.find(conversation => conversation.id === selectedConversationId) ?? null,
+        [conversations, selectedConversationId],
+    );
+
+    const selectedConversationMessages = selectedConversation?.messages ?? [];
+
+    const markConversationAsRead = useCallback(
+        async (conversation: ConversationSummary | null) => {
+            if (!conversation) {
+                return;
+            }
+            const unreadMessages = conversation.messages.filter(
+                message => message.recipientId === employee.id && message.status === 'unread',
+            );
+            if (unreadMessages.length === 0) {
+                return;
+            }
+            try {
+                await Promise.all(
+                    unreadMessages.map(message => Promise.resolve(onUpdateMessageStatus(message.id, 'read'))),
+                );
+            } catch (error) {
+                console.error('Failed to mark messages as read', error);
+            }
+        },
+        [employee.id, onUpdateMessageStatus],
+    );
+
+    useEffect(() => {
+        void markConversationAsRead(selectedConversation);
+    }, [selectedConversation, markConversationAsRead]);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }, [selectedConversationMessages.length, selectedConversationId]);
+
+    const handleSelectConversation = useCallback((conversationId: string) => {
+        setSelectedConversationId(conversationId);
+    }, []);
+
+    const handleSendMessage = useCallback(async () => {
+        const content = draftMessage.trim();
+        if (!content || isSending) {
             return;
         }
 
+        const conversation = selectedConversation ?? conversations[0];
+        const recipientId = conversation?.counterpartId || 'hr';
+
         setIsSending(true);
         try {
-            await Promise.resolve(onSendMessage({
-                senderId: employee.id,
-                recipientId: 'hr',
-                senderName: employee.name,
-                senderPhotoUrl: employee.photoUrl,
-                content: composeContent,
-            }));
-            setComposeContent('');
-            setIsComposing(false);
-            setActiveTab('sent');
+            await Promise.resolve(
+                onSendMessage({
+                    senderId: employee.id,
+                    recipientId,
+                    senderName: employee.name,
+                    senderPhotoUrl: employee.photoUrl,
+                    content,
+                }),
+            );
+            setDraftMessage('');
+            if (!selectedConversationId && conversation) {
+                setSelectedConversationId(conversation.id);
+            }
         } catch (error) {
-            console.error('Failed to send message to HR', error);
+            console.error('Failed to send message', error);
             alert('Failed to send message. Please try again.');
         } finally {
             setIsSending(false);
         }
-    };
+    }, [draftMessage, isSending, selectedConversation, conversations, onSendMessage, employee, selectedConversationId]);
 
-    const timeSince = (date: string): string => {
-        const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
-        let interval = seconds / 31536000;
-        if (interval > 1) return Math.floor(interval) + " years ago";
-        interval = seconds / 2592000;
-        if (interval > 1) return Math.floor(interval) + " months ago";
-        interval = seconds / 86400;
-        if (interval > 1) return Math.floor(interval) + " days ago";
-        interval = seconds / 3600;
-        if (interval > 1) return Math.floor(interval) + " hours ago";
-        interval = seconds / 60;
-        if (interval > 1) return Math.floor(interval) + " minutes ago";
-        return Math.floor(seconds) + " seconds ago";
-    }
-
-    const messagesToDisplay = activeTab === 'inbox' ? inboxMessages : sentMessages;
-
-    const handleDeleteMessage = async (messageId: string) => {
-        if (!onDeleteMessage) {
-            return;
-        }
-        const confirmDelete = window.confirm('Delete this message? This cannot be undone.');
-        if (!confirmDelete) {
-            return;
-        }
-        try {
-            await Promise.resolve(onDeleteMessage(messageId));
-            if (selectedMessage?.id === messageId) {
-                setSelectedMessage(null);
+    const handleDeleteMessage = useCallback(
+        async (messageId: string) => {
+            if (!onDeleteMessage) {
+                return;
             }
-        } catch (error) {
-            console.error('Failed to delete message', error);
-            alert('Failed to delete message. Please try again.');
-        }
-    };
+            const confirmed = window.confirm('Delete this message? This cannot be undone.');
+            if (!confirmed) {
+                return;
+            }
+            try {
+                await Promise.resolve(onDeleteMessage(messageId));
+            } catch (error) {
+                console.error('Failed to delete message', error);
+                alert('Failed to delete message. Please try again.');
+            }
+        },
+        [onDeleteMessage],
+    );
 
-    if (selectedMessage) {
-        return (
-            <div className="p-4 sm:p-6 animate-fade-in">
-                <div className="flex items-center justify-between mb-4">
-                    <button onClick={() => setSelectedMessage(null)} className="text-sm font-semibold text-gray-700">&larr; Back to {activeTab}</button>
-                    {onDeleteMessage && (
-                        <button
-                            onClick={() => { void handleDeleteMessage(selectedMessage.id); }}
-                            className="flex items-center gap-1 text-sm font-semibold text-red-600 hover:text-red-700"
-                            type="button"
-                        >
-                            <TrashIcon className="h-4 w-4" /> Delete
-                        </button>
-                    )}
-                </div>
-                <div className="space-y-4">
-                    <div className="flex items-center pb-4 border-b">
-                        <img src={selectedMessage.senderPhotoUrl || 'https://i.pravatar.cc/150?u=hr'} alt={selectedMessage.senderName} className="h-12 w-12 rounded-full mr-4" />
-                        <div>
-                            <h3 className="text-lg font-bold text-gray-800">{selectedMessage.senderName}</h3>
-                            <p className="text-sm text-gray-500">Received: {new Date(selectedMessage.timestamp).toLocaleString()}</p>
-                        </div>
-                    </div>
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                        <p className="text-gray-800 whitespace-pre-wrap">{selectedMessage.content}</p>
-                    </div>
-                </div>
-            </div>
-        )
-    }
+    const totalUnread = useMemo(
+        () => conversations.reduce((sum, conversation) => sum + conversation.unreadCount, 0),
+        [conversations],
+    );
 
-    if (isComposing) {
-         return (
-             <div className="p-4 sm:p-6 animate-fade-in">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-gray-800">New Message to HR</h3>
-                    <button onClick={() => setIsComposing(false)} className="text-sm font-semibold text-gray-700">Cancel</button>
-                </div>
-                <div className="space-y-4">
-                    <textarea
-                        value={composeContent}
-                        onChange={e => setComposeContent(e.target.value)}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-gray-500 focus:border-gray-500"
-                        rows={8}
-                        placeholder="Type your message here..."
-                    ></textarea>
-                    <button onClick={handleSendMessage} disabled={isSending} className="w-full py-2 px-4 bg-gray-800 text-white font-semibold rounded-lg hover:bg-gray-900 disabled:bg-gray-400 disabled:cursor-not-allowed">
-                        {isSending ? 'Sending...' : 'Send Message'}
-                    </button>
-                </div>
-            </div>
-         );
-    }
-    
     return (
         <div className="p-4 sm:p-6 animate-fade-in">
-            <div className="flex justify-between items-center mb-4">
-                <div className="border-b border-gray-200">
-                    <nav className="-mb-px flex space-x-6" aria-label="Tabs">
-                        <button onClick={() => setActiveTab('inbox')} className={`whitespace-nowrap pb-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'inbox' ? 'border-gray-800 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
-                            Inbox
-                        </button>
-                        <button onClick={() => setActiveTab('sent')} className={`whitespace-nowrap pb-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'sent' ? 'border-gray-800 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
-                            Sent
-                        </button>
-                    </nav>
-                </div>
-                <button onClick={() => setIsComposing(true)} className="flex items-center px-4 py-2 bg-gray-800 text-white font-semibold rounded-lg hover:bg-gray-900 text-sm">
-                    <PlusIcon className="mr-2" /> Compose
-                </button>
-            </div>
-
-            <div className="space-y-2">
-                {messagesToDisplay.length > 0 ? messagesToDisplay.map(msg => (
-                    <button
-                        key={msg.id}
-                        onClick={() => handleSelectMessage(msg)}
-                        className="w-full flex items-start gap-3 p-3 sm:p-4 rounded-lg text-left transition-colors hover:bg-gray-50 border relative"
-                    >
-                        {activeTab === 'inbox' && msg.status === 'unread' && <span className="absolute top-3 left-1 h-2 w-2 bg-blue-500 rounded-full"></span>}
-                        <img src={msg.senderPhotoUrl || 'https://i.pravatar.cc/150?u=hr'} alt={msg.senderName} className="h-10 w-10 rounded-full mt-1 flex-shrink-0" />
-                        <div className="flex-grow overflow-hidden">
-                            <div className="flex items-start justify-between gap-2">
-                                <div>
-                                    <p className={`font-semibold truncate ${activeTab === 'inbox' && msg.status === 'unread' ? 'font-bold' : ''}`}>
-                                        {activeTab === 'inbox' ? msg.senderName : 'To: HR Admin'}
-                                    </p>
-                                    <p className="text-sm text-gray-600 truncate">{msg.content.split('\n')[0]}</p>
-                                </div>
-                                <div className="flex items-center gap-2 flex-shrink-0">
-                                    <p className="text-xs text-gray-500">{timeSince(msg.timestamp)}</p>
-                                    {onDeleteMessage && (
-                                        <span
-                                            role="button"
-                                            tabIndex={0}
-                                            onClick={(event) => {
-                                                event.stopPropagation();
-                                                event.preventDefault();
-                                                void handleDeleteMessage(msg.id);
-                                            }}
-                                            onKeyDown={(event) => {
-                                                if (event.key === 'Enter' || event.key === ' ') {
-                                                    event.preventDefault();
-                                                    event.stopPropagation();
-                                                    void handleDeleteMessage(msg.id);
-                                                }
-                                            }}
-                                            className="text-gray-400 hover:text-red-600 focus:outline-none focus-visible:text-red-600"
-                                        >
-                                            <TrashIcon className="h-4 w-4" />
+            <div className="grid gap-6 md:grid-cols-[260px_minmax(0,1fr)] min-h-[70vh]">
+                <aside className="flex flex-col border-r border-gray-200 pr-4 overflow-y-auto">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-lg font-semibold text-gray-800">Messages</h2>
+                        {totalUnread > 0 && (
+                            <span className="inline-flex items-center justify-center rounded-full bg-blue-500 px-2 py-1 text-xs font-medium text-white">
+                                {totalUnread}
+                            </span>
+                        )}
+                    </div>
+                    <div className="space-y-2">
+                        {conversations.length > 0 ? (
+                            conversations.map(conversation => {
+                                const isActive = conversation.id === selectedConversationId;
+                                return (
+                                    <button
+                                        key={conversation.id}
+                                        onClick={() => handleSelectConversation(conversation.id)}
+                                        className={`w-full flex items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
+                                            isActive
+                                                ? 'bg-gray-800 text-white border-gray-800'
+                                                : 'bg-white text-gray-800 hover:bg-gray-50'
+                                        }`}
+                                        type="button"
+                                    >
+                                        <div className="relative">
+                                            <img
+                                                src={conversation.counterpartPhotoUrl}
+                                                alt={conversation.counterpartName}
+                                                className="h-10 w-10 rounded-full object-cover"
+                                            />
+                                            {conversation.unreadCount > 0 && (
+                                                <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] font-semibold text-white">
+                                                    {conversation.unreadCount}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <p className={`truncate text-sm font-semibold ${isActive ? 'text-white' : 'text-gray-900'}`}>
+                                                {conversation.counterpartName}
+                                            </p>
+                                            <p className={`truncate text-xs ${isActive ? 'text-gray-300' : 'text-gray-500'}`}>
+                                                {conversation.lastMessage
+                                                    ? conversation.lastMessage.content.split('\n')[0]
+                                                    : 'Start a conversation with HR.'}
+                                            </p>
+                                        </div>
+                                        <span className={`text-xs ${isActive ? 'text-gray-200' : 'text-gray-400'}`}>
+                                            {conversation.lastMessage ? formatRelativeTime(conversation.lastMessage.timestamp) : ''}
                                         </span>
-                                    )}
+                                    </button>
+                                );
+                            })
+                        ) : (
+                            <p className="text-sm text-gray-500">No conversations yet.</p>
+                        )}
+                    </div>
+                </aside>
+                <section className="flex h-full flex-col overflow-hidden">
+                    {selectedConversation ? (
+                        <>
+                            <div className="flex items-center justify-between border-b border-gray-200 pb-3">
+                                <div className="flex items-center gap-3">
+                                    <img
+                                        src={selectedConversation.counterpartPhotoUrl}
+                                        alt={selectedConversation.counterpartName}
+                                        className="h-12 w-12 rounded-full object-cover"
+                                    />
+                                    <div>
+                                        <h3 className="text-lg font-semibold text-gray-800">
+                                            {selectedConversation.counterpartName}
+                                        </h3>
+                                        <p className="text-xs text-gray-500">
+                                            {selectedConversation.lastMessage
+                                                ? `Last message ${formatRelativeTime(selectedConversation.lastMessage.timestamp)}`
+                                                : 'No messages yet. Start the conversation below.'}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
+                            <div className="flex-1 overflow-y-auto space-y-4 py-4 pr-1">
+                                {selectedConversationMessages.length > 0 ? (
+                                    selectedConversationMessages.map(message => {
+                                        const fromEmployee = message.senderId === employee.id;
+                                        return (
+                                            <div
+                                                key={message.id}
+                                                className={`flex ${fromEmployee ? 'justify-end' : 'justify-start'}`}
+                                            >
+                                                <div
+                                                    className={`max-w-md rounded-lg px-3 py-2 text-sm shadow-sm ${
+                                                        fromEmployee
+                                                            ? 'bg-gray-800 text-white'
+                                                            : 'bg-gray-100 text-gray-800'
+                                                    }`}
+                                                >
+                                                    <p className="whitespace-pre-wrap">{message.content}</p>
+                                                    <div className="mt-2 flex items-center gap-2 text-xs opacity-70">
+                                                        <span>
+                                                            {new Date(message.timestamp).toLocaleTimeString([], {
+                                                                hour: '2-digit',
+                                                                minute: '2-digit',
+                                                            })}
+                                                        </span>
+                                                        {fromEmployee && message.status === 'unread' && (
+                                                            <span>(awaiting HR)</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                {fromEmployee && onDeleteMessage && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            void handleDeleteMessage(message.id);
+                                                        }}
+                                                        className="ml-2 self-end text-gray-400 transition-colors hover:text-red-600"
+                                                    >
+                                                        <TrashIcon className="h-4 w-4" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        );
+                                    })
+                                ) : (
+                                    <div className="flex h-full items-center justify-center text-sm text-gray-500">
+                                        No messages in this conversation yet.
+                                    </div>
+                                )}
+                                <div ref={messagesEndRef} />
+                            </div>
+                            <form
+                                onSubmit={event => {
+                                    event.preventDefault();
+                                    void handleSendMessage();
+                                }}
+                                className="mt-4 flex flex-col gap-3 border-t border-gray-200 pt-4"
+                            >
+                                <label className="sr-only" htmlFor="employee-message-input">
+                                    Message to HR
+                                </label>
+                                <textarea
+                                    id="employee-message-input"
+                                    value={draftMessage}
+                                    onChange={event => setDraftMessage(event.target.value)}
+                                    rows={3}
+                                    className="w-full resize-none rounded-lg border border-gray-300 p-3 text-sm focus:border-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-200"
+                                    placeholder="Type your message to HR..."
+                                />
+                                <div className="flex justify-end">
+                                    <button
+                                        type="submit"
+                                        disabled={isSending || !draftMessage.trim()}
+                                        className="inline-flex items-center rounded-lg bg-gray-800 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-gray-900 disabled:cursor-not-allowed disabled:bg-gray-400"
+                                    >
+                                        {isSending ? 'Sending…' : 'Send Message'}
+                                    </button>
+                                </div>
+                            </form>
+                        </>
+                    ) : (
+                        <div className="flex flex-1 items-center justify-center text-center text-sm text-gray-500">
+                            Select a conversation to view messages.
                         </div>
-                    </button>
-                )) : (
-                    <p className="text-center text-gray-500 py-12">No messages in your {activeTab}.</p>
-                )}
+                    )}
+                </section>
             </div>
         </div>
     );

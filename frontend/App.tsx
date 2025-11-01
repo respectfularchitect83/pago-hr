@@ -385,6 +385,9 @@ const mapMessageFromApi = (raw: any): Message => {
         ? new Date(raw.created_at).toISOString()
         : new Date().toISOString();
 
+  const rawStatus = typeof raw?.status === 'string' ? raw.status.toLowerCase().trim() : undefined;
+  const isRead = raw?.is_read === true || rawStatus === 'read';
+
   const mapped: Message = {
     id: resolvedId,
     senderId: resolvedSenderId,
@@ -392,7 +395,7 @@ const mapMessageFromApi = (raw: any): Message => {
     senderName: raw?.senderName ?? raw?.sender_name ?? 'HR Admin',
     content: raw?.content ?? '',
     timestamp,
-    status: raw?.status === 'read' || raw?.is_read === true ? 'read' : 'unread',
+    status: isRead ? 'read' : 'unread',
   };
 
   const photoUrl = raw?.senderPhotoUrl ?? raw?.sender_photo_url ?? raw?.senderPhotoURL;
@@ -454,6 +457,10 @@ const App: React.FC = () => {
 
     return updated;
   }, []);
+
+  React.useEffect(() => {
+    optimisticReadIdsRef.current.clear();
+  }, [currentUser]);
 
   // Update favicon so the browser tab reflects the active tenant.
   React.useEffect(() => {

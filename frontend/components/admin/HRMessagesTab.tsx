@@ -315,8 +315,8 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({
     };
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[70vh]">
-            <div className="md:col-span-1 border-r pr-4 overflow-y-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 min-h-[70vh] lg:h-[calc(100vh-220px)]">
+            <div className="md:col-span-1 border-r pr-4 overflow-y-auto max-h-full">
                 <h2 className="text-xl font-bold text-gray-800 mb-4">Conversations</h2>
                 <div className="space-y-2">
                     {conversations.length > 0 ? conversations.map(convo => (
@@ -344,7 +344,7 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({
                     )}
                 </div>
             </div>
-            <div className="md:col-span-2 pl-4 flex flex-col h-full">
+            <div className="md:col-span-2 pl-4 flex flex-col h-full max-h-full">
                 {selectedEmployee ? (
                     <>
                         <div className="border-b pb-2 mb-4">
@@ -413,7 +413,7 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({
                                 onChange={e => setReplyContent(e.target.value)}
                                 placeholder={`Reply to ${selectedEmployee.name}...`}
                                 className="flex-grow p-2 border border-gray-300 rounded-lg"
-                                rows={2}
+                                rows={3}
                             />
                             <button type="submit" className="px-4 py-2 bg-gray-800 text-white font-semibold rounded-lg hover:bg-gray-900 self-stretch">
                                 Send
