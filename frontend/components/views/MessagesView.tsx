@@ -27,29 +27,38 @@ const DEFAULT_HR_PHOTO = 'https://i.pravatar.cc/150?u=hr';
 
 const getTimestamp = (message: Message): number => new Date(message.timestamp).getTime();
 
-const formatRelativeTime = (date: string): string => {
-    const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+const formatConversationTimestamp = (date: string): string => {
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) {
+        return date;
+    }
+
+    const seconds = Math.max(0, Math.floor((Date.now() - parsed.getTime()) / 1000));
     if (seconds < 60) {
-        return `${Math.max(seconds, 0)} seconds ago`;
+        return 'Just now';
     }
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) {
-        return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+    if (seconds < 3600) {
+        return `${Math.floor(seconds / 60)}m ago`;
     }
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) {
-        return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+    if (seconds < 86400) {
+        return `${Math.floor(seconds / 3600)}h ago`;
     }
-    const days = Math.floor(hours / 24);
-    if (days < 30) {
-        return `${days} day${days === 1 ? '' : 's'} ago`;
+    if (seconds < 604800) {
+        return `${Math.floor(seconds / 86400)}d ago`;
     }
-    const months = Math.floor(days / 30);
-    if (months < 12) {
-        return `${months} month${months === 1 ? '' : 's'} ago`;
+    return parsed.toLocaleDateString();
+};
+
+const formatMessageTime = (timestamp: string): string => {
+    const parsed = new Date(timestamp);
+    if (Number.isNaN(parsed.getTime())) {
+        return timestamp;
     }
-    const years = Math.floor(months / 12);
-    return `${years} year${years === 1 ? '' : 's'} ago`;
+
+    return parsed.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+    });
 };
 
 const MessagesView: React.FC<MessagesViewProps> = ({
@@ -63,6 +72,8 @@ const MessagesView: React.FC<MessagesViewProps> = ({
     const [draftMessage, setDraftMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const previousConversationIdRef = useRef<string | null>(null);
+    const previousMessageCountRef = useRef<number>(0);
 
     const conversations = useMemo<ConversationSummary[]>(() => {
         const map = new Map<string, ConversationSummary>();
@@ -173,8 +184,19 @@ const MessagesView: React.FC<MessagesViewProps> = ({
     }, [selectedConversation, markConversationAsRead]);
 
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }, [selectedConversationMessages.length, selectedConversationId]);
+        const previousConversationId = previousConversationIdRef.current;
+        const previousMessageCount = previousMessageCountRef.current;
+        const currentMessageCount = selectedConversationMessages.length;
+        const conversationChanged = Boolean(selectedConversationId) && selectedConversationId !== previousConversationId;
+        const hasNewMessages = currentMessageCount > previousMessageCount;
+
+        if (conversationChanged || hasNewMessages) {
+            messagesEndRef.current?.scrollIntoView({ behavior: conversationChanged ? 'smooth' : 'auto', block: 'end' });
+        }
+
+        previousConversationIdRef.current = selectedConversationId ?? null;
+        previousMessageCountRef.current = currentMessageCount;
+    }, [selectedConversationId, selectedConversationMessages.length]);
 
     const handleSelectConversation = useCallback((conversationId: string) => {
         setSelectedConversationId(conversationId);
@@ -238,7 +260,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({
 
     return (
         <div className="p-4 sm:p-6 animate-fade-in">
-            <div className="grid gap-6 md:grid-cols-[260px_minmax(0,1fr)] min-h-[70vh]">
+            <div className="grid gap-6 md:grid-cols-[260px_minmax(0,1fr)] min-h-[70vh] lg:h-[calc(100vh-220px)]">
                 <aside className="flex flex-col border-r border-gray-200 pr-4 overflow-y-auto">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-lg font-semibold text-gray-800">Messages</h2>
@@ -286,7 +308,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({
                                             </p>
                                         </div>
                                         <span className={`text-xs ${isActive ? 'text-gray-200' : 'text-gray-400'}`}>
-                                            {conversation.lastMessage ? formatRelativeTime(conversation.lastMessage.timestamp) : ''}
+                                            {conversation.lastMessage ? formatConversationTimestamp(conversation.lastMessage.timestamp) : ''}
                                         </span>
                                     </button>
                                 );
@@ -296,7 +318,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({
                         )}
                     </div>
                 </aside>
-                <section className="flex h-full flex-col overflow-hidden">
+                <section className="flex h-full max-h-full flex-col">
                     {selectedConversation ? (
                         <>
                             <div className="flex items-center justify-between border-b border-gray-200 pb-3">
@@ -312,7 +334,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({
                                         </h3>
                                         <p className="text-xs text-gray-500">
                                             {selectedConversation.lastMessage
-                                                ? `Last message ${formatRelativeTime(selectedConversation.lastMessage.timestamp)}`
+                                                ? `Last message ${formatConversationTimestamp(selectedConversation.lastMessage.timestamp)}`
                                                 : 'No messages yet. Start the conversation below.'}
                                         </p>
                                     </div>
@@ -336,12 +358,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({
                                                 >
                                                     <p className="whitespace-pre-wrap">{message.content}</p>
                                                     <div className="mt-2 flex items-center gap-2 text-xs opacity-70">
-                                                        <span>
-                                                            {new Date(message.timestamp).toLocaleTimeString([], {
-                                                                hour: '2-digit',
-                                                                minute: '2-digit',
-                                                            })}
-                                                        </span>
+                                                        <span>{formatMessageTime(message.timestamp)}</span>
                                                         {fromEmployee && message.status === 'unread' && (
                                                             <span>(awaiting HR)</span>
                                                         )}
