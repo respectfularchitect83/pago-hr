@@ -70,7 +70,7 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
                             name: emp.name,
                             socialSecurityNumber: emp.socialSecurityNumber || '',
                             branch: emp.branch || 'N/A',
-                            payDate: p.payDate,
+                            payDate: payDate.toISOString().split('T')[0],
                             ssDescription: ssDeduction.description,
                             ssAmount: amount.toFixed(2),
                         });
@@ -151,8 +151,9 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
 
-        const ensureValue = (value?: string) => (value && value.trim() ? value.trim() : '');
-        const formatMoney = (value: number) => `N$ ${Number(value || 0).toFixed(2)}`;
+    const ensureValue = (value?: string) => (value && value.trim() ? value.trim() : '');
+    const formatSpacedDate = (value: string) => escapeHtml(value).split('').join(' ');
+    const formatMoney = (value: number) => `N$ ${Number(value || 0).toFixed(2)}`;
 
         const totalDeducted = Number(totalContribution.toFixed(2));
         const employerContribution = totalDeducted;
@@ -185,14 +186,17 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
     <title>Form 10(a)</title>
     <style>
       body { font-family: 'Times New Roman', serif; color: #000; margin: 0; padding: 24px 32px; }
-      .top-row { display: flex; justify-content: space-between; align-items: flex-start; font-size: 12px; }
-      .address { white-space: pre-line; }
-      .form-number { font-weight: bold; text-transform: uppercase; }
-      .commission-title { text-align: center; margin-top: 16px; font-size: 14px; text-transform: uppercase; font-weight: bold; line-height: 1.4; }
-      .commission-subtitle { text-align: center; font-size: 11px; margin-top: 4px; }
-      .return-title { text-align: center; font-size: 12px; margin-top: 18px; text-transform: uppercase; }
-      .period-line { text-align: center; font-size: 12px; margin-top: 4px; letter-spacing: 2px; }
-      .block-letters { text-align: center; font-size: 11px; margin-top: 8px; text-transform: uppercase; }
+    .commission-block { text-align: center; margin-top: 8px; text-transform: uppercase; }
+    .commission-line { font-size: 14px; font-weight: bold; line-height: 1.4; }
+    .commission-subtitle { text-align: center; font-size: 11px; margin-top: 4px; text-transform: none; }
+    .top-row { display: flex; justify-content: space-between; align-items: flex-start; font-size: 12px; margin-top: 16px; }
+    .address { white-space: pre-line; }
+    .form-number { font-weight: bold; text-transform: uppercase; }
+    .return-title { text-align: center; font-size: 12px; margin-top: 18px; text-transform: uppercase; }
+    .period-line { display: flex; justify-content: center; gap: 64px; font-size: 12px; font-weight: bold; margin-top: 8px; }
+    .period-date { letter-spacing: 4px; }
+    .period-to { text-align: center; font-size: 12px; margin-top: 4px; letter-spacing: 6px; }
+    .block-letters { text-align: center; font-size: 11px; margin-top: 6px; text-transform: uppercase; }
       .details-table { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 12px; }
       .details-table td { padding: 6px 8px; border: 1px solid #000; }
       .details-table td.label { width: 40%; font-weight: bold; }
@@ -223,15 +227,23 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
     </style>
   </head>
   <body>
-    <div class="top-row">
-      <div class="address">The Executive Officer\nSocial Security Commission\nPrivate Bag 13223\nWindhoek\nNamibia</div>
-      <div class="form-number">Form 10(a)</div>
-    </div>
-    <div class="commission-title">Republic of Namibia<br/>Social Security Commission<br/>Social Security Act, 1994</div>
-    <div class="commission-subtitle">Cnr. A Klopper &amp; J. Haupt Streets - Khomasdal</div>
-    <div class="return-title">Return accompanying payment of contributions for the period</div>
-    <div class="period-line">${escapeHtml(startDate)} ............................................................ TO ............................................................ ${escapeHtml(endDate)}</div>
-    <div class="block-letters">(Section 22/Regulation 5) &ndash; To be completed in block letters</div>
+        <div class="commission-block">
+            <div class="commission-line">Republic of Namibia</div>
+            <div class="commission-line">Social Security Commission</div>
+            <div class="commission-line">Social Security Act, 1994</div>
+            <div class="commission-subtitle">Cnr. A Klopper &amp; J. Haupt Streets - Khomasdal</div>
+        </div>
+        <div class="top-row">
+                    <div class="address">The Executive Officer\nSocial Security Commission\nPrivate Bag 13223\nWindhoek\nNamibia</div>
+                    <div class="form-number">FORM 10(A)</div>
+        </div>
+                <div class="return-title">RETURN ACCOMPANYING PAYMENT OF CONTRIBUTIONS FOR THE PERIOD</div>
+        <div class="period-line">
+            <span class="period-date">${formatSpacedDate(startDate)}</span>
+            <span class="period-date">${formatSpacedDate(endDate)}</span>
+        </div>
+        <div class="period-to">T O</div>
+        <div class="block-letters">(SECTION 22/REGULATION 5) &ndash; TO BE COMPLETED IN BLOCK LETTERS</div>
     <table class="details-table">
       <tr><td class="label">1. Name of Employer:</td><td class="value"><span>${escapeHtml(ensureValue(companyInfo.name))}</span></td></tr>
       <tr><td class="label">2. Social Security Registration Number:</td><td class="value"><span>${escapeHtml(ensureValue(companyInfo.socialSecurityNumber))}</span></td></tr>
