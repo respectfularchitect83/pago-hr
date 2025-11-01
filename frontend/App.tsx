@@ -422,12 +422,38 @@ const App: React.FC = () => {
   const [resolvedTenantSlug, setResolvedTenantSlug] = useState<string>(TENANT_SLUG);
   const [loginView, setLoginView] = useState<'landing' | 'employee' | 'admin' | 'register'>(deriveInitialLoginView);
   const [lastLoginType, setLastLoginType] = useState<'admin' | 'employee' | null>(null);
+  const optimisticReadIdsRef = React.useRef<Set<string>>(new Set());
 
   const applyTenantHeader = React.useCallback(
     (headers: Record<string, string> = {}, slugOverride?: string) =>
       withTenantHeader(headers, slugOverride ?? resolvedTenantSlug),
     [resolvedTenantSlug],
   );
+
+  const applyOptimisticMessageState = React.useCallback((incoming: Message[]): Message[] => {
+    const optimisticSet = optimisticReadIdsRef.current;
+    if (optimisticSet.size === 0) {
+      return incoming;
+    }
+
+    const cleanup: string[] = [];
+    const updated = incoming.map<Message>(msg => {
+      if (!optimisticSet.has(msg.id)) {
+        return msg;
+      }
+      if (msg.status === 'read') {
+        cleanup.push(msg.id);
+        return msg;
+      }
+      return { ...msg, status: 'read' as const };
+    });
+
+    if (cleanup.length > 0) {
+      cleanup.forEach(id => optimisticSet.delete(id));
+    }
+
+    return updated;
+  }, []);
 
   // Update favicon so the browser tab reflects the active tenant.
   React.useEffect(() => {
@@ -543,7 +569,8 @@ const App: React.FC = () => {
         const data = await response.json();
         if (!cancelled) {
           if (Array.isArray(data)) {
-            setMessages(data.map(mapMessageFromApi));
+            const mappedMessages = data.map(mapMessageFromApi);
+            setMessages(applyOptimisticMessageState(mappedMessages));
           } else {
             setMessages([]);
           }
@@ -681,7 +708,7 @@ const App: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [authToken, currentUser, applyTenantHeader]);
+  }, [authToken, currentUser, applyTenantHeader, applyOptimisticMessageState]);
   React.useEffect(() => {
     if ((!pendingEmployeeId && !pendingEmployeeEmail) || employees.length === 0) {
       return;
@@ -746,7 +773,8 @@ const App: React.FC = () => {
         }
 
         if (Array.isArray(data)) {
-          setMessages(data.map(mapMessageFromApi));
+          const mappedMessages = data.map(mapMessageFromApi);
+          setMessages(applyOptimisticMessageState(mappedMessages));
         } else {
           setMessages([]);
         }
@@ -778,7 +806,7 @@ const App: React.FC = () => {
       activeController?.abort();
       window.clearInterval(intervalId);
     };
-  }, [authToken, currentUser, applyTenantHeader]);
+  }, [authToken, currentUser, applyTenantHeader, applyOptimisticMessageState]);
 
 
   // Employee login handler with password
@@ -1251,6 +1279,12 @@ const App: React.FC = () => {
       return;
     }
 
+    if (status === 'read') {
+      optimisticReadIdsRef.current.add(messageId);
+    } else {
+      optimisticReadIdsRef.current.delete(messageId);
+    }
+
     let previousStatus: Message['status'] | undefined;
     setMessages(prevMessages => prevMessages.map(msg => {
       if (msg.id === messageId) {
@@ -1280,14 +1314,21 @@ const App: React.FC = () => {
 
       const updated = await response.json();
       const mapped = mapMessageFromApi(updated);
-      setMessages(prev => prev.map(msg => (msg.id === mapped.id ? mapped : msg)));
+      const [normalized] = applyOptimisticMessageState([mapped]);
+      const finalMessage = normalized ?? mapped;
+      setMessages(prev => prev.map(msg => (msg.id === finalMessage.id ? finalMessage : msg)));
     } catch (error) {
       console.error('Failed to update message status', error);
+      if (status === 'read') {
+        optimisticReadIdsRef.current.delete(messageId);
+      } else {
+        optimisticReadIdsRef.current.add(messageId);
+      }
       if (previousStatus && previousStatus !== status) {
         setMessages(prev => prev.map(msg => (msg.id === messageId ? { ...msg, status: previousStatus! } : msg)));
       }
     }
-  }, [authToken, applyTenantHeader]);
+  }, [authToken, applyTenantHeader, applyOptimisticMessageState]);
 
   const handleDeleteMessage = useCallback(async (messageId: string) => {
     if (!authToken) {
