@@ -29,6 +29,42 @@ interface Conversation {
     unreadCount: number;
 }
 
+const HR_DEFAULT_PHOTO = 'https://i.pravatar.cc/150?u=hr-admin';
+
+const formatConversationTimestamp = (timestamp: string): string => {
+    const parsed = new Date(timestamp);
+    if (Number.isNaN(parsed.getTime())) {
+        return timestamp;
+    }
+
+    const seconds = Math.max(0, Math.floor((Date.now() - parsed.getTime()) / 1000));
+    if (seconds < 60) {
+        return 'Just now';
+    }
+    if (seconds < 3600) {
+        return `${Math.floor(seconds / 60)}m ago`;
+    }
+    if (seconds < 86400) {
+        return `${Math.floor(seconds / 3600)}h ago`;
+    }
+    if (seconds < 604800) {
+        return `${Math.floor(seconds / 86400)}d ago`;
+    }
+    return parsed.toLocaleDateString();
+};
+
+const formatMessageTime = (timestamp: string): string => {
+    const parsed = new Date(timestamp);
+    if (Number.isNaN(parsed.getTime())) {
+        return timestamp;
+    }
+
+    return parsed.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+};
+
 const HRMessagesTab: React.FC<HRMessagesTabProps> = ({
     messages,
     employees,
@@ -40,7 +76,10 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({
 }) => {
     const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
     const [replyContent, setReplyContent] = useState('');
+    const [isSending, setIsSending] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const previousEmployeeIdRef = useRef<string | null>(null);
+    const previousMessageCountRef = useRef<number>(0);
     const [processingMessageId, setProcessingMessageId] = useState<string | null>(null);
     const [processedMessageResults, setProcessedMessageResults] = useState<Record<string, ActionResultState>>({});
     const [locallyDismissedUnread, setLocallyDismissedUnread] = useState<Set<string>>(() => new Set());
@@ -91,7 +130,7 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({
                 conversationsMap.set(employeeId, {
                     employeeId: employee.id,
                     employeeName: employee.name,
-                    employeePhotoUrl: employee.photoUrl,
+                    employeePhotoUrl: employee.photoUrl || HR_DEFAULT_PHOTO,
                     lastMessage: msg,
                     unreadCount: unreadCount,
                 });
@@ -112,17 +151,20 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({
         return employees.find(e => e.id === selectedEmployeeId);
     }, [selectedEmployeeId, employees]);
 
-    const handleSelectConversation = (employeeId: string) => {
+    const handleSelectConversation = useCallback((employeeId: string) => {
         setSelectedEmployeeId(employeeId);
         const unreadFromEmployee = messages.filter(msg => msg.senderId === employeeId && msg.status === 'unread');
         void markUnreadMessagesAsRead(unreadFromEmployee, employeeId);
-    };
+    }, [messages, markUnreadMessagesAsRead]);
 
     const handleSendReply = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!replyContent.trim() || !selectedEmployeeId) return;
+        if (!replyContent.trim() || !selectedEmployeeId || isSending) {
+            return;
+        }
 
         try {
+            setIsSending(true);
             await Promise.resolve(onSendMessage({
                 senderId: 'hr',
                 recipientId: selectedEmployeeId,
@@ -134,12 +176,21 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({
         } catch (error) {
             console.error('Failed to send HR reply', error);
             alert('Failed to send reply. Please try again.');
+        } finally {
+            setIsSending(false);
         }
     };
 
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [selectedConversationMessages]);
+        if (selectedEmployeeId && conversations.some(convo => convo.employeeId === selectedEmployeeId)) {
+            return;
+        }
+        if (conversations.length > 0) {
+            handleSelectConversation(conversations[0].employeeId);
+        } else {
+            setSelectedEmployeeId(null);
+        }
+    }, [conversations, selectedEmployeeId, handleSelectConversation]);
 
     useEffect(() => {
         if (!selectedEmployeeId) {
@@ -180,16 +231,20 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({
         });
     }, [messages]);
     
-    const timeSince = (date: string): string => {
-        const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
-        let interval = seconds / 86400; // days
-        if (interval > 1) return new Date(date).toLocaleDateString();
-        interval = seconds / 3600; // hours
-        if (interval > 1) return Math.floor(interval) + "h ago";
-        interval = seconds / 60; // minutes
-        if (interval > 1) return Math.floor(interval) + "m ago";
-        return "Just now";
-    }
+    useEffect(() => {
+        const previousEmployeeId = previousEmployeeIdRef.current;
+        const previousMessageCount = previousMessageCountRef.current;
+        const currentMessageCount = selectedConversationMessages.length;
+        const conversationChanged = Boolean(selectedEmployeeId) && selectedEmployeeId !== previousEmployeeId;
+        const hasNewMessages = currentMessageCount > previousMessageCount;
+
+        if (conversationChanged || hasNewMessages) {
+            messagesEndRef.current?.scrollIntoView({ behavior: conversationChanged ? 'smooth' : 'auto', block: 'end' });
+        }
+
+        previousEmployeeIdRef.current = selectedEmployeeId ?? null;
+        previousMessageCountRef.current = currentMessageCount;
+    }, [selectedEmployeeId, selectedConversationMessages.length]);
 
     const handleDeleteMessage = async (messageId: string) => {
         const message = messages.find(m => m.id === messageId);
@@ -315,116 +370,190 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({
     };
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 min-h-[70vh] lg:h-[calc(100vh-220px)]">
-            <div className="md:col-span-1 border-r pr-4 overflow-y-auto max-h-full">
-                <h2 className="text-xl font-bold text-gray-800 mb-4">Conversations</h2>
-                <div className="space-y-2">
-                    {conversations.length > 0 ? conversations.map(convo => (
-                        <button
-                            key={convo.employeeId}
-                            onClick={() => { void handleSelectConversation(convo.employeeId); }}
-                            className={`w-full flex items-start p-3 rounded-lg text-left transition-colors relative ${
-                                selectedEmployeeId === convo.employeeId ? 'bg-gray-800 text-white' : 'bg-white hover:bg-gray-100 border'
-                            }`}
-                        >
-                            {convo.unreadCount > 0 && <span className="absolute top-3 left-1 h-2 w-2 bg-blue-500 rounded-full"></span>}
-                            <img src={convo.employeePhotoUrl} alt={convo.employeeName} className="h-10 w-10 rounded-full mr-3 mt-1" />
-                            <div className="flex-grow overflow-hidden">
-                                <div className="flex justify-between items-baseline">
-                                    <p className={`font-semibold truncate ${convo.unreadCount > 0 && selectedEmployeeId !== convo.employeeId ? 'font-bold' : ''}`}>{convo.employeeName}</p>
-                                    <p className={`text-xs flex-shrink-0 ${selectedEmployeeId === convo.employeeId ? 'text-gray-300' : 'text-gray-500'}`}>{timeSince(convo.lastMessage.timestamp)}</p>
-                                </div>
-                                <p className={`text-sm truncate ${selectedEmployeeId === convo.employeeId ? 'text-gray-300' : 'text-gray-600'}`}>
-                                    {convo.lastMessage.content.split('\n')[0]}
-                                </p>
-                            </div>
-                        </button>
-                    )) : (
-                        <p className="text-center text-gray-500 py-8">No conversations yet.</p>
-                    )}
-                </div>
-            </div>
-            <div className="md:col-span-2 pl-4 flex flex-col h-full max-h-full">
-                {selectedEmployee ? (
-                    <>
-                        <div className="border-b pb-2 mb-4">
-                            <h3 className="text-lg font-bold text-gray-800">{selectedEmployee.name}</h3>
-                            <p className="text-sm text-gray-500">{selectedEmployee.position}</p>
-                        </div>
-                        <div className="flex-grow overflow-y-auto space-y-4 pr-2">
-                            {selectedConversationMessages.map(msg => (
-                                <div key={msg.id} className={`group flex items-end gap-2 ${msg.senderId === 'hr' ? 'justify-end' : 'justify-start'}`}>
-                                    {msg.senderId !== 'hr' && (
-                                        <img src={msg.senderPhotoUrl} alt={msg.senderName} className="h-8 w-8 rounded-full" />
-                                    )}
-                                    <div className="relative flex items-end gap-2">
-                                        <div className="flex flex-col gap-2">
-                                            <div className={`max-w-md p-3 rounded-lg ${msg.senderId === 'hr' ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-800'}`}>
-                                                <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                                                <p className={`text-xs mt-1 opacity-70 ${msg.senderId === 'hr' ? 'text-right' : 'text-left'}`}>{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
-                                            </div>
-                                            {msg.metadata?.type === 'leave-request' && msg.senderId !== 'hr' && (
-                                                <div className="flex flex-col gap-2 text-xs text-gray-600">
-                                                    <div className="flex flex-wrap gap-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => { void handleApproveLeave(msg); }}
-                                                            disabled={processingMessageId === msg.id || Boolean(processedMessageResults[msg.id])}
-                                                            className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1 font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
-                                                        >
-                                                            {processingMessageId === msg.id ? 'Processing…' : 'Approve request'}
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => { void handleDeclineLeave(msg); }}
-                                                            disabled={processingMessageId === msg.id || Boolean(processedMessageResults[msg.id])}
-                                                            className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1 font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
-                                                        >
-                                                            {processingMessageId === msg.id ? 'Processing…' : 'Do not approve'}
-                                                        </button>
-                                                    </div>
-                                                    {processedMessageResults[msg.id] && (
-                                                        <div className="max-w-sm rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-left text-gray-600">
-                                                            {processedMessageResults[msg.id].details}
-                                                        </div>
-                                                    )}
-                                                </div>
+        <div className="p-4 sm:p-6 animate-fade-in">
+            <div className="grid gap-6 md:grid-cols-[260px_minmax(0,1fr)] min-h-[70vh] lg:min-h-[calc(100vh-220px)]">
+                <aside className="flex min-h-0 flex-col border-r border-gray-200 pr-4 overflow-y-auto">
+                    <div className="mb-4 flex items-center justify-between">
+                        <h2 className="text-lg font-semibold text-gray-800">Conversations</h2>
+                        {conversations.some(convo => convo.unreadCount > 0) && (
+                            <span className="inline-flex items-center justify-center rounded-full bg-blue-500 px-2 py-1 text-xs font-medium text-white">
+                                {conversations.reduce((sum, convo) => sum + convo.unreadCount, 0)}
+                            </span>
+                        )}
+                    </div>
+                    <div className="space-y-2">
+                        {conversations.length > 0 ? (
+                            conversations.map(convo => {
+                                const isActive = convo.employeeId === selectedEmployeeId;
+                                return (
+                                    <button
+                                        key={convo.employeeId}
+                                        onClick={() => { void handleSelectConversation(convo.employeeId); }}
+                                        type="button"
+                                        className={`w-full flex items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
+                                            isActive ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-800 hover:bg-gray-50'
+                                        }`}
+                                    >
+                                        <div className="relative">
+                                            <img
+                                                src={convo.employeePhotoUrl}
+                                                alt={convo.employeeName}
+                                                className="h-10 w-10 rounded-full object-cover"
+                                            />
+                                            {convo.unreadCount > 0 && (
+                                                <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] font-semibold text-white">
+                                                    {convo.unreadCount}
+                                                </span>
                                             )}
                                         </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => { void handleDeleteMessage(msg.id); }}
-                                            className={`opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-600 focus-visible:opacity-100 p-1`}
-                                            aria-label="Delete message"
-                                        >
-                                            <TrashIcon className="h-4 w-4" />
-                                        </button>
-                                    </div>
-                                    {msg.senderId === 'hr' && (
-                                        <img src={currentUser.photoUrl || 'https://i.pravatar.cc/150?u=hr1'} alt={currentUser.username} className="h-8 w-8 rounded-full" />
-                                    )}
-                                </div>
-                            ))}
-                            <div ref={messagesEndRef} />
-                        </div>
-                        <form onSubmit={handleSendReply} className="mt-4 flex items-center gap-2">
-                            <textarea
-                                value={replyContent}
-                                onChange={e => setReplyContent(e.target.value)}
-                                placeholder={`Reply to ${selectedEmployee.name}...`}
-                                className="flex-grow p-2 border border-gray-300 rounded-lg"
-                                rows={3}
-                            />
-                            <button type="submit" className="px-4 py-2 bg-gray-800 text-white font-semibold rounded-lg hover:bg-gray-900 self-stretch">
-                                Send
-                            </button>
-                        </form>
-                    </>
-                ) : (
-                    <div className="flex items-center justify-center h-full text-gray-500">
-                        Select a conversation to view messages.
+                                        <div className="min-w-0 flex-1">
+                                            <p className={`truncate text-sm font-semibold ${isActive ? 'text-white' : 'text-gray-900'}`}>{convo.employeeName}</p>
+                                            <p className={`truncate text-xs ${isActive ? 'text-gray-300' : 'text-gray-500'}`}>
+                                                {convo.lastMessage.content.split('\n')[0]}
+                                            </p>
+                                        </div>
+                                        <span className={`text-xs ${isActive ? 'text-gray-200' : 'text-gray-400'}`}>
+                                            {formatConversationTimestamp(convo.lastMessage.timestamp)}
+                                        </span>
+                                    </button>
+                                );
+                            })
+                        ) : (
+                            <p className="text-sm text-gray-500">No conversations yet.</p>
+                        )}
                     </div>
-                )}
+                </aside>
+                <section className="flex h-full min-h-0 max-h-[75vh] flex-col overflow-hidden md:max-h-[calc(100vh-260px)]">
+                    {selectedEmployee ? (
+                        <>
+                            <div className="flex items-center justify-between border-b border-gray-200 pb-3">
+                                <div className="flex items-center gap-3">
+                                    <img
+                                        src={selectedEmployee.photoUrl || HR_DEFAULT_PHOTO}
+                                        alt={selectedEmployee.name}
+                                        className="h-12 w-12 rounded-full object-cover"
+                                    />
+                                    <div>
+                                        <h3 className="text-lg font-semibold text-gray-800">{selectedEmployee.name}</h3>
+                                        <p className="text-xs text-gray-500">{selectedEmployee.position || 'Employee'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex-1 min-h-0">
+                                <div className="h-full overflow-y-auto space-y-4 py-4 pr-1">
+                                    {selectedConversationMessages.length > 0 ? (
+                                        selectedConversationMessages.map(msg => {
+                                            const fromHr = msg.senderId === 'hr';
+                                            return (
+                                                <div
+                                                    key={msg.id}
+                                                    className={`group flex items-end gap-2 ${fromHr ? 'justify-end' : 'justify-start'}`}
+                                                >
+                                                    {!fromHr && (
+                                                        <img
+                                                            src={msg.senderPhotoUrl || selectedEmployee.photoUrl || HR_DEFAULT_PHOTO}
+                                                            alt={msg.senderName}
+                                                            className="h-8 w-8 rounded-full object-cover"
+                                                        />
+                                                    )}
+                                                    <div className="relative flex items-end gap-2">
+                                                        <div className="flex flex-col gap-2">
+                                                            <div
+                                                                className={`max-w-md rounded-lg px-3 py-2 text-sm shadow-sm ${
+                                                                    fromHr ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-800'
+                                                                }`}
+                                                            >
+                                                                <p className="whitespace-pre-wrap">{msg.content}</p>
+                                                                <div className={`mt-2 flex items-center gap-2 text-xs opacity-70 ${fromHr ? 'justify-end' : 'justify-start'}`}>
+                                                                    <span>{formatMessageTime(msg.timestamp)}</span>
+                                                                    {fromHr && msg.status === 'unread' && <span>(awaiting employee)</span>}
+                                                                </div>
+                                                            </div>
+                                                            {msg.metadata?.type === 'leave-request' && !fromHr && (
+                                                                <div className="flex flex-col gap-2 text-xs text-gray-600">
+                                                                    <div className="flex flex-wrap gap-2">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => { void handleApproveLeave(msg); }}
+                                                                            disabled={processingMessageId === msg.id || Boolean(processedMessageResults[msg.id])}
+                                                                            className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1 font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                                                        >
+                                                                            {processingMessageId === msg.id ? 'Processing…' : 'Approve request'}
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => { void handleDeclineLeave(msg); }}
+                                                                            disabled={processingMessageId === msg.id || Boolean(processedMessageResults[msg.id])}
+                                                                            className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1 font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                                                        >
+                                                                            {processingMessageId === msg.id ? 'Processing…' : 'Do not approve'}
+                                                                        </button>
+                                                                    </div>
+                                                                    {processedMessageResults[msg.id] && (
+                                                                        <div className="max-w-sm rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-left text-gray-600">
+                                                                            {processedMessageResults[msg.id].details}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => { void handleDeleteMessage(msg.id); }}
+                                                            className="p-1 text-gray-400 opacity-0 transition-opacity hover:text-red-600 focus-visible:opacity-100 group-hover:opacity-100"
+                                                            aria-label="Delete message"
+                                                        >
+                                                            <TrashIcon className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
+                                                    {fromHr && (
+                                                        <img
+                                                            src={currentUser.photoUrl || HR_DEFAULT_PHOTO}
+                                                            alt={currentUser.username}
+                                                            className="h-8 w-8 rounded-full object-cover"
+                                                        />
+                                                    )}
+                                                </div>
+                                            );
+                                        })
+                                    ) : (
+                                        <div className="flex h-full items-center justify-center text-sm text-gray-500">
+                                            No messages in this conversation yet.
+                                        </div>
+                                    )}
+                                    <div ref={messagesEndRef} />
+                                </div>
+                            </div>
+                            <form
+                                onSubmit={handleSendReply}
+                                className="mt-4 flex flex-col gap-3 border-t border-gray-200 pt-4"
+                            >
+                                <label className="sr-only" htmlFor="hr-message-reply">Reply to employee</label>
+                                <textarea
+                                    id="hr-message-reply"
+                                    value={replyContent}
+                                    onChange={event => setReplyContent(event.target.value)}
+                                    placeholder={`Reply to ${selectedEmployee.name}...`}
+                                    rows={3}
+                                    className="w-full resize-none rounded-lg border border-gray-300 p-3 text-sm focus:border-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-200"
+                                />
+                                <div className="flex justify-end">
+                                    <button
+                                        type="submit"
+                                        disabled={isSending || !replyContent.trim()}
+                                        className="inline-flex items-center rounded-lg bg-gray-800 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-gray-900 disabled:cursor-not-allowed disabled:bg-gray-400"
+                                    >
+                                        {isSending ? 'Sending…' : 'Send Message'}
+                                    </button>
+                                </div>
+                            </form>
+                        </>
+                    ) : (
+                        <div className="flex flex-1 items-center justify-center text-center text-sm text-gray-500">
+                            Select a conversation to view messages.
+                        </div>
+                    )}
+                </section>
             </div>
         </div>
     );
