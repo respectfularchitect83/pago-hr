@@ -318,7 +318,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({
                         )}
                     </div>
                 </aside>
-                <section className="flex h-full min-h-0 max-h-full flex-col overflow-hidden">
+                <section className="flex h-full min-h-0 max-h-[75vh] flex-col overflow-hidden md:max-h-[calc(100vh-260px)]">
                     {selectedConversation ? (
                         <>
                             <div className="flex items-center justify-between border-b border-gray-200 pb-3">
@@ -340,9 +340,10 @@ const MessagesView: React.FC<MessagesViewProps> = ({
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex-1 overflow-y-auto space-y-4 py-4 pr-1">
-                                {selectedConversationMessages.length > 0 ? (
-                                    selectedConversationMessages.map(message => {
+                            <div className="flex-1 min-h-0">
+                                <div className="h-full overflow-y-auto space-y-4 py-4 pr-1">
+                                    {selectedConversationMessages.length > 0 ? (
+                                        selectedConversationMessages.map(message => {
                                         const fromEmployee = message.senderId === employee.id;
                                         return (
                                             <div
@@ -377,13 +378,14 @@ const MessagesView: React.FC<MessagesViewProps> = ({
                                                 )}
                                             </div>
                                         );
-                                    })
-                                ) : (
-                                    <div className="flex h-full items-center justify-center text-sm text-gray-500">
-                                        No messages in this conversation yet.
-                                    </div>
-                                )}
-                                <div ref={messagesEndRef} />
+                                        })
+                                    ) : (
+                                        <div className="flex h-full items-center justify-center text-sm text-gray-500">
+                                            No messages in this conversation yet.
+                                        </div>
+                                    )}
+                                    <div ref={messagesEndRef} />
+                                </div>
                             </div>
                             <form
                                 onSubmit={event => {
