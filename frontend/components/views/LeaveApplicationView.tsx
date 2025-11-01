@@ -79,8 +79,7 @@ Leave Type: ${leaveDetails.type}
 Start Date: ${leaveDetails.startDate}
 End Date: ${leaveDetails.endDate}
 Working Days (excl. weekends/holidays): ${leaveSummary.workingDays}
-Leave Hours Charged: ${leaveSummary.leaveHours}
-Leave Days to Deduct: ${leaveSummary.leaveDays}
+Leave Days to Deduct: ${leaveSummary.workingDays}
 
 ${holidaySection}
 
@@ -96,7 +95,7 @@ ${leaveDetails.notes || 'No reason provided.'}
                 leaveType: leaveDetails.type,
                 startDate: leaveDetails.startDate,
                 endDate: leaveDetails.endDate,
-                leaveDays: Number(leaveSummary.leaveDays.toFixed(2)),
+                leaveDays: Number(leaveSummary.workingDays.toFixed(2)),
                 leaveHours: Number(leaveSummary.leaveHours.toFixed(2)),
                 workingDays: leaveSummary.workingDays,
                 notes: leaveDetails.notes.trim() || undefined,
@@ -177,13 +176,12 @@ ${leaveDetails.notes || 'No reason provided.'}
                         />
                     </div>
                  </div>
-                      <div className="p-3 bg-gray-100 rounded-md text-center">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-1 text-sm text-gray-600">
-                        <span>Working Days (excl. weekends/holidays): <span className="font-semibold text-gray-800">{leaveSummary ? leaveSummary.workingDays : 0}</span></span>
-                        <span>Public Holidays: <span className="font-semibold text-gray-800">{leaveSummary ? leaveSummary.holidayCount : 0}</span></span>
-                        <span>Leave Hours Charged: <span className="font-semibold text-gray-800">{leaveSummary ? leaveSummary.leaveHours.toFixed(2) : '0.00'}</span></span>
-                        <span>Leave Days to Deduct: <span className="font-semibold text-gray-800">{leaveSummary ? leaveSummary.leaveDays.toFixed(2) : '0.00'}</span></span>
-                    </div>
+                                            <div className="p-3 bg-gray-100 rounded-md text-center">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-1 text-sm text-gray-600">
+                                                <span>Working Days (excl. weekends/holidays): <span className="font-semibold text-gray-800">{leaveSummary ? leaveSummary.workingDays.toFixed(2) : '0.00'}</span></span>
+                                                <span>Public Holidays: <span className="font-semibold text-gray-800">{leaveSummary ? leaveSummary.holidayCount : 0}</span></span>
+                                                <span>Leave Days to Deduct: <span className="font-semibold text-gray-800">{leaveSummary ? leaveSummary.workingDays.toFixed(2) : '0.00'}</span></span>
+                                        </div>
                  </div>
                  {leaveSummary && leaveSummary.holidayMatches.length > 0 && (
                     <div className="p-3 bg-white border border-gray-200 rounded-md">

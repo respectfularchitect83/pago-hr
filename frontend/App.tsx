@@ -1204,14 +1204,28 @@ const App: React.FC = () => {
       return 'duplicate';
     }
 
-    const days = Number.isFinite(data.leaveDays) ? Number(data.leaveDays.toFixed(2)) : Number(data.leaveDays);
+    const normalizedLeaveDays = Number.isFinite(data.leaveDays)
+      ? Number(data.leaveDays.toFixed(2))
+      : Number(data.leaveDays);
+    const fallbackFromHours = typeof data.leaveHours === 'number' && Number.isFinite(data.leaveHours)
+      ? Math.max(data.leaveHours / 8, 0)
+      : 0;
+    const fallbackFromWorkingDays = Number.isFinite(data.workingDays)
+      ? Number(data.workingDays.toFixed(2))
+      : 0;
+
+    const computedDays = Number.isFinite(normalizedLeaveDays) && normalizedLeaveDays > 0
+      ? normalizedLeaveDays
+      : fallbackFromHours > 0
+        ? fallbackFromHours
+        : fallbackFromWorkingDays;
 
     const newRecord: LeaveRecord = {
       id: `leave-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       type: data.leaveType,
       startDate: data.startDate,
       endDate: data.endDate,
-      days: Number.isFinite(days) && days > 0 ? days : Math.max(data.leaveHours / 8, 0),
+      days: computedDays > 0 ? Number(computedDays.toFixed(2)) : 0,
       note: data.notes?.trim()
         ? data.notes
         : `Imported from leave request submitted on ${new Date(data.submittedAt).toLocaleDateString()}`,

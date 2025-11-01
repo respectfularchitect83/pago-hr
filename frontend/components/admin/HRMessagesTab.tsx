@@ -14,6 +14,13 @@ interface HRMessagesTabProps {
     onCreateLeaveRecord: (message: Message) => Promise<'created' | 'duplicate'>;
 }
 
+type LeaveActionStatus = 'approved' | 'declined' | 'duplicate';
+
+interface ActionResultState {
+    status: LeaveActionStatus;
+    details: string;
+}
+
 interface Conversation {
     employeeId: string;
     employeeName: string;
@@ -35,7 +42,7 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({
     const [replyContent, setReplyContent] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [processingMessageId, setProcessingMessageId] = useState<string | null>(null);
-    const [processedMessageResults, setProcessedMessageResults] = useState<Record<string, 'created' | 'duplicate'>>({});
+    const [processedMessageResults, setProcessedMessageResults] = useState<Record<string, ActionResultState>>({});
 
     const conversations = useMemo(() => {
         const conversationsMap = new Map<string, Conversation>();
@@ -147,7 +154,26 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({
         }
     };
 
-    const handleCreateLeave = async (message: Message) => {
+    const resolveEmployeeForMessage = (message: Message) => {
+        if (message.metadata?.type === 'leave-request') {
+            const metaEmployeeId = message.metadata.data.employeeId;
+            const matched = employees.find(emp => emp.id === metaEmployeeId);
+            if (matched) {
+                return matched;
+            }
+        }
+        return employees.find(emp => emp.id === message.senderId) ?? null;
+    };
+
+    const formatDateRange = (start: string, end: string) => {
+        const startDate = new Date(start);
+        const endDate = new Date(end);
+        const startStr = Number.isNaN(startDate.getTime()) ? start : startDate.toLocaleDateString();
+        const endStr = Number.isNaN(endDate.getTime()) ? end : endDate.toLocaleDateString();
+        return { startStr, endStr };
+    };
+
+    const handleApproveLeave = async (message: Message) => {
         if (message.metadata?.type !== 'leave-request') {
             return;
         }
@@ -155,17 +181,75 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({
             return;
         }
         setProcessingMessageId(message.id);
+        const { data } = message.metadata;
+        const employee = resolveEmployeeForMessage(message);
+        const employeeName = employee?.name ?? message.senderName;
+        const { startStr, endStr } = formatDateRange(data.startDate, data.endDate);
+
         try {
-            const result = await Promise.resolve(onCreateLeaveRecord(message));
-            setProcessedMessageResults(prev => ({ ...prev, [message.id]: result }));
-            if (result === 'created') {
-                alert('Leave record created from this request.');
-            } else {
-                alert('A matching leave record already exists. No duplicate was created.');
-            }
+            const creationResult = await Promise.resolve(onCreateLeaveRecord(message));
+
+            const approvedContent = creationResult === 'created'
+                ? `Hi ${employeeName}, your leave request from ${startStr} to ${endStr} has been approved.`
+                : `Hi ${employeeName}, your leave request from ${startStr} to ${endStr} was already recorded. No further action is needed.`;
+
+            await Promise.resolve(onSendMessage({
+                senderId: 'hr',
+                recipientId: employee?.id ?? message.senderId,
+                senderName: 'HR Admin',
+                senderPhotoUrl: currentUser.photoUrl || undefined,
+                content: approvedContent,
+            }));
+
+            setProcessedMessageResults(prev => ({
+                ...prev,
+                [message.id]: {
+                    status: creationResult === 'created' ? 'approved' : 'duplicate',
+                    details: creationResult === 'created'
+                        ? 'Leave approved and record created. Employee notified.'
+                        : 'Leave request already existed. Employee notified.',
+                },
+            }));
         } catch (error) {
-            console.error('Failed to create leave record from message', error);
-            alert('Failed to create leave record. Please try again.');
+            console.error('Failed to approve leave request', error);
+            alert('Failed to approve leave request. Please try again.');
+        } finally {
+            setProcessingMessageId(null);
+        }
+    };
+
+    const handleDeclineLeave = async (message: Message) => {
+        if (message.metadata?.type !== 'leave-request') {
+            return;
+        }
+        if (processingMessageId) {
+            return;
+        }
+        setProcessingMessageId(message.id);
+        const { data } = message.metadata;
+        const employee = resolveEmployeeForMessage(message);
+        const employeeName = employee?.name ?? message.senderName;
+        const { startStr, endStr } = formatDateRange(data.startDate, data.endDate);
+
+        try {
+            await Promise.resolve(onSendMessage({
+                senderId: 'hr',
+                recipientId: employee?.id ?? message.senderId,
+                senderName: 'HR Admin',
+                senderPhotoUrl: currentUser.photoUrl || undefined,
+                content: `Hi ${employeeName}, your leave request from ${startStr} to ${endStr} has not been approved. Please reach out to HR if you need further details.`,
+            }));
+
+            setProcessedMessageResults(prev => ({
+                ...prev,
+                [message.id]: {
+                    status: 'declined',
+                    details: 'Request not approved. Employee notified automatically.',
+                },
+            }));
+        } catch (error) {
+            console.error('Failed to decline leave request', error);
+            alert('Failed to send decline response. Please try again.');
         } finally {
             setProcessingMessageId(null);
         }
@@ -221,20 +305,28 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({
                                                 <p className={`text-xs mt-1 opacity-70 ${msg.senderId === 'hr' ? 'text-right' : 'text-left'}`}>{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
                                             </div>
                                             {msg.metadata?.type === 'leave-request' && msg.senderId !== 'hr' && (
-                                                <div className="flex flex-col gap-1 text-xs text-gray-600">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => { void handleCreateLeave(msg); }}
-                                                        disabled={processingMessageId === msg.id}
-                                                        className="inline-flex items-center justify-center gap-2 self-start rounded-md border border-gray-300 bg-white px-3 py-1 font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
-                                                    >
-                                                        {processingMessageId === msg.id ? 'Creating…' : 'Create leave record'}
-                                                    </button>
+                                                <div className="flex flex-col gap-2 text-xs text-gray-600">
+                                                    <div className="flex flex-wrap gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => { void handleApproveLeave(msg); }}
+                                                            disabled={processingMessageId === msg.id || Boolean(processedMessageResults[msg.id])}
+                                                            className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1 font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                                        >
+                                                            {processingMessageId === msg.id ? 'Processing…' : 'Approve request'}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => { void handleDeclineLeave(msg); }}
+                                                            disabled={processingMessageId === msg.id || Boolean(processedMessageResults[msg.id])}
+                                                            className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1 font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                                        >
+                                                            {processingMessageId === msg.id ? 'Processing…' : 'Do not approve'}
+                                                        </button>
+                                                    </div>
                                                     {processedMessageResults[msg.id] && (
                                                         <span className="text-gray-500">
-                                                            {processedMessageResults[msg.id] === 'created'
-                                                                ? 'Leave record created for this request.'
-                                                                : 'Matching leave record already exists.'}
+                                                            {processedMessageResults[msg.id].details}
                                                         </span>
                                                     )}
                                                 </div>
