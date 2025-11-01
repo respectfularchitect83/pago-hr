@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { Employee, Company } from '../../../types';
 import { convertToCSV, downloadCSV } from '../../../utils/csvHelper';
@@ -37,7 +36,15 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
     const ssDescription = countryRegulations[companyInfo.country].socialSecurity.description;
 
     const { reportRows, namibiaRows, totalContribution } = useMemo(() => {
-        const detailedRows: any[] = [];
+        const detailedRows: Array<{
+            employeeId: string;
+            name: string;
+            socialSecurityNumber: string;
+            branch: string;
+            payDate: string;
+            ssDescription: string;
+            ssAmount: string;
+        }> = [];
         const aggregated = new Map<string, { employee: Employee; amount: number }>();
         const start = new Date(startDate);
         const end = new Date(endDate);
@@ -132,199 +139,165 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
         });
     };
 
-        const handleDownloadNamibiaForm = () => {
-                const escapeHtml = (value: string) => value
-                        .replace(/&/g, '&amp;')
-                        .replace(/</g, '&lt;')
-                        .replace(/>/g, '&gt;')
-                        .replace(/"/g, '&quot;')
-                        .replace(/'/g, '&#39;');
+    const handleDownloadNamibiaForm = () => {
+        if (!isNamibianCompany) {
+            return;
+        }
 
-                const win = window.open('', '_blank', 'width=900,height=1200');
-                if (!win) {
-                        alert('Unable to open a new window for PDF export. Please check your browser pop-up settings.');
-                        return;
-                }
+        const escapeHtml = (value: string) => value
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
 
-                const periodLabel = `${startDate} to ${endDate}`;
-            const formatMoney = (value: number) => (Number.isFinite(value) ? `N$ ${value.toFixed(2)}` : '');
-                const ensureValue = (value?: string) => (value && value.trim() ? value.trim() : '');
+        const ensureValue = (value?: string) => (value && value.trim() ? value.trim() : '');
+        const formatMoney = (value: number) => `N$ ${Number(value || 0).toFixed(2)}`;
 
-                const totalDeducted = Number(totalContribution.toFixed(2));
-                const employerContribution = totalDeducted;
-                const totalPaidOver = totalDeducted + employerContribution;
+        const totalDeducted = Number(totalContribution.toFixed(2));
+        const employerContribution = totalDeducted;
+        const totalPaidOver = totalDeducted + employerContribution;
 
-                const minimumRows = Math.max(namibiaRows.length, 10);
-                const employeeRowsHtml = Array.from({ length: minimumRows }).map((_, index) => {
-                    const row = namibiaRows[index];
-                    const surname = row ? escapeHtml(row.surname) : '';
-                    const initials = row ? escapeHtml(row.initials) : '';
-                    const ssNumber = row ? escapeHtml(row.socialSecurityNumber ?? '') : '';
-                    const salary = row ? row.basicSalary : 0;
-                    const contribution = row ? row.contribution : 0;
-                        return `
-                                <tr>
-                                        <td>${surname}</td>
-                                        <td>${initials}</td>
-                            <td>${ssNumber}</td>
-                                        <td class="money">${row ? formatMoney(salary) : ''}</td>
-                                        <td class="money">${row ? formatMoney(contribution) : ''}</td>
-                                </tr>
-                        `;
-                }).join('');
-
-                const html = `<!doctype html>
-<html>
-    <head>
-        <meta charset="utf-8" />
-        <title>Social Security Form 10(a)</title>
-        <style>
-            body { font-family: 'Times New Roman', serif; color: #000; margin: 0; padding: 32px; }
-            .top-row { display: flex; justify-content: space-between; align-items: flex-start; }
-            .address { white-space: pre-line; font-size: 12px; }
-            .form-number { font-size: 12px; font-weight: bold; text-transform: uppercase; }
-            .commission-title { text-align: center; margin-top: 16px; font-size: 14px; font-weight: bold; text-transform: uppercase; }
-            .return-title { text-align: center; font-size: 12px; margin-top: 12px; }
-            .block-letters { text-align: center; font-size: 11px; margin-top: 8px; text-transform: uppercase; }
-            .details-table { width: 100%; margin-top: 18px; border-collapse: collapse; font-size: 12px; }
-            .details-table td { padding: 6px 4px; border: 1px solid #000; }
-            .details-table td:first-child { width: 35%; font-weight: bold; }
-            .employees-title { margin-top: 18px; font-size: 12px; font-weight: bold; text-transform: uppercase; text-align: center; }
-            .employees-table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 11px; }
-            .employees-table th,
-            .employees-table td { border: 1px solid #000; padding: 6px 4px; text-align: left; }
-            .employees-table th { text-align: center; font-weight: bold; text-transform: uppercase; font-size: 10px; }
-            .employees-table td.money { text-align: right; }
-            .totals-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; }
-            .totals-table td { border: 1px solid #000; padding: 8px 6px; }
-            .declaration { margin-top: 24px; font-size: 12px; }
-            .declaration-line { margin-top: 28px; display: flex; justify-content: space-between; font-size: 11px; }
-            .office-use { border: 1px solid #000; margin-top: 24px; padding: 12px; font-size: 11px; }
-            .office-use-title { font-weight: bold; text-transform: uppercase; margin-bottom: 8px; text-align: center; }
-            .office-use-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-            .office-use-grid div { display: flex; flex-direction: column; gap: 4px; }
-            .office-use-grid span { border-bottom: 1px solid #000; min-height: 18px; }
-            @media print {
-                body { padding: 24px; }
-            }
-        </style>
-    </head>
-    <body>
-        <div class="top-row">
-            <div class="address">The Executive Officer\nSocial Security Commission\nPrivate Bag 13223\nWindhoek\nNamibia</div>
-            <div class="form-number">Form 10(a)</div>
-        </div>
-        <div class="commission-title">Republic of Namibia\nSocial Security Commission\nSocial Security Act, 1994</div>
-        <div class="return-title">Return accompanying payment of contributions for the period ${escapeHtml(startDate)} to ${escapeHtml(endDate)}</div>
-        <div class="block-letters">(Section 22/Regulation 5) - To be completed in block letters</div>
-        <table class="details-table">
-            <tr>
-                <td>1. Name of Employer:</td>
-                <td>${escapeHtml(ensureValue(companyInfo.name))}</td>
-            </tr>
-            <tr>
-                <td>2. Social Security Registration Number:</td>
-                <td>${escapeHtml(ensureValue(companyInfo.socialSecurityNumber))}</td>
-            </tr>
-            <tr>
-                <td>3. Postal Address:</td>
-                <td>${escapeHtml(ensureValue(companyInfo.address))}</td>
-            </tr>
-            <tr>
-                <td>4. Email Address:</td>
-                <td>${escapeHtml(ensureValue(companyInfo.emailAddress))}</td>
-            </tr>
-            <tr>
-                <td>5. Telephone Number:</td>
-                <td>${escapeHtml(ensureValue(companyInfo.phoneNumber))}</td>
-            </tr>
-            <tr>
-                <td>6. Tax Number:</td>
-                <td>${escapeHtml(ensureValue(companyInfo.taxNumber))}</td>
-            </tr>
-        </table>
-        <div class="employees-title">Particulars of Employees</div>
-        <table class="employees-table">
-            <thead>
+        const rowsToRender = Math.max(namibiaRows.length, 12);
+        const employeeRowsHtml = Array.from({ length: rowsToRender }).map((_, index) => {
+            const row = namibiaRows[index];
+            return `
                 <tr>
-                    <th>Surname</th>
-                    <th>Initials</th>
-                    <th>Social Security Registration No</th>
-                    <th>Monthly Remuneration</th>
-                    <th>Contributions Deducted</th>
+                    <td>${row ? escapeHtml(row.surname) : ''}</td>
+                    <td>${row ? escapeHtml(row.initials) : ''}</td>
+                    <td>${row ? escapeHtml(row.socialSecurityNumber ?? '') : ''}</td>
+                    <td class="numeric">${row ? formatMoney(row.basicSalary) : ''}</td>
+                    <td class="numeric">${row ? formatMoney(row.contribution) : ''}</td>
                 </tr>
-            </thead>
-            <tbody>
-                ${employeeRowsHtml}
-            </tbody>
-        </table>
-        <table class="totals-table">
-            <tr>
-                <td>Total Amount Deducted</td>
-                <td>${formatMoney(totalDeducted)}</td>
-            </tr>
-            <tr>
-                <td>Employer's Contribution</td>
-                <td>${formatMoney(employerContribution)}</td>
-            </tr>
-            <tr>
-                <td>Total Amount Paid Over</td>
-                <td>${formatMoney(totalPaidOver)}</td>
-            </tr>
-        </table>
-        <div class="declaration">Declaration: I, _________________________________________________ (Full Names and Capacity) certify that the above particulars are true and correct.</div>
-        <div class="declaration-line">
-            <div>Employer: ${escapeHtml(ensureValue(companyInfo.name))}</div>
-            <div>Official Stamp:</div>
-            <div>Date: ${escapeHtml(new Date().toISOString().split('T')[0])}</div>
-        </div>
-        <div class="office-use">
-            <div class="office-use-title">For Office Use Only</div>
-            <div class="office-use-grid">
-                <div>
-                    <label>Checked By:</label>
-                    <span></span>
-                </div>
-                <div>
-                    <label>Date:</label>
-                    <span></span>
-                </div>
-                <div>
-                    <label>Receipt Number:</label>
-                    <span></span>
-                </div>
-                <div>
-                    <label>Fee Paid: N$</label>
-                    <span></span>
-                </div>
-                <div style="grid-column: span 2;">
-                    <label>Remarks:</label>
-                    <span style="min-height: 36px;"></span>
-                </div>
-            </div>
-        </div>
-        <script>window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 300); };</script>
-    </body>
+            `;
+        }).join('');
+
+        const win = window.open('', '_blank', 'width=900,height=1200');
+        if (!win) {
+            alert('Unable to open a new window for PDF export. Please check your browser pop-up settings.');
+            return;
+        }
+
+        const html = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Form 10(a)</title>
+    <style>
+      body { font-family: 'Times New Roman', serif; color: #000; margin: 0; padding: 24px 32px; }
+      .top-row { display: flex; justify-content: space-between; align-items: flex-start; font-size: 12px; }
+      .address { white-space: pre-line; }
+      .form-number { font-weight: bold; text-transform: uppercase; }
+      .commission-title { text-align: center; margin-top: 16px; font-size: 14px; text-transform: uppercase; font-weight: bold; line-height: 1.4; }
+      .commission-subtitle { text-align: center; font-size: 11px; margin-top: 4px; }
+      .return-title { text-align: center; font-size: 12px; margin-top: 18px; text-transform: uppercase; }
+      .period-line { text-align: center; font-size: 12px; margin-top: 4px; letter-spacing: 2px; }
+      .block-letters { text-align: center; font-size: 11px; margin-top: 8px; text-transform: uppercase; }
+      .details-table { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 12px; }
+      .details-table td { padding: 6px 8px; border: 1px solid #000; }
+      .details-table td.label { width: 40%; font-weight: bold; }
+      .details-table td.value { position: relative; }
+      .details-table td.value span { display: block; min-height: 18px; border-bottom: 1px solid #000; padding-left: 4px; }
+      .particulars-title { margin-top: 22px; text-transform: uppercase; font-weight: bold; text-align: center; font-size: 12px; }
+      .employees-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; }
+      .employees-table th, .employees-table td { border: 1px solid #000; padding: 6px 4px; }
+      .employees-table th { text-transform: uppercase; font-size: 10px; text-align: center; }
+      .employees-table td.numeric { text-align: right; }
+      .totals-table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12px; }
+      .totals-table td { border: 1px solid #000; padding: 8px 6px; }
+      .totals-table td:first-child { width: 60%; font-weight: bold; }
+      .declaration { margin-top: 28px; font-size: 12px; }
+      .signature-row { display: flex; justify-content: space-between; margin-top: 26px; font-size: 11px; }
+      .signature-cell { width: 32%; text-align: center; }
+      .signature-line { border-top: 1px solid #000; margin-bottom: 4px; height: 18px; }
+      .office-box { margin-top: 30px; border: 1px solid #000; padding: 12px 16px; font-size: 11px; }
+      .office-box h3 { text-transform: uppercase; text-align: center; margin: 0 0 12px; font-size: 11px; }
+      .office-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+      .office-grid .span-two { grid-column: span 2; }
+      .office-grid label { display: block; margin-bottom: 4px; }
+      .office-grid span { display: block; border-bottom: 1px solid #000; height: 18px; }
+      .remarks { height: 42px; }
+      @media print {
+        body { padding: 18px 24px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="top-row">
+      <div class="address">The Executive Officer\nSocial Security Commission\nPrivate Bag 13223\nWindhoek\nNamibia</div>
+      <div class="form-number">Form 10(a)</div>
+    </div>
+    <div class="commission-title">Republic of Namibia<br/>Social Security Commission<br/>Social Security Act, 1994</div>
+    <div class="commission-subtitle">Cnr. A Klopper &amp; J. Haupt Streets - Khomasdal</div>
+    <div class="return-title">Return accompanying payment of contributions for the period</div>
+    <div class="period-line">${escapeHtml(startDate)} ............................................................ TO ............................................................ ${escapeHtml(endDate)}</div>
+    <div class="block-letters">(Section 22/Regulation 5) &ndash; To be completed in block letters</div>
+    <table class="details-table">
+      <tr><td class="label">1. Name of Employer:</td><td class="value"><span>${escapeHtml(ensureValue(companyInfo.name))}</span></td></tr>
+      <tr><td class="label">2. Social Security Registration Number:</td><td class="value"><span>${escapeHtml(ensureValue(companyInfo.socialSecurityNumber))}</span></td></tr>
+      <tr><td class="label">3. Postal Address:</td><td class="value"><span>${escapeHtml(ensureValue(companyInfo.address))}</span></td></tr>
+      <tr><td class="label">4. Email Address:</td><td class="value"><span>${escapeHtml(ensureValue(companyInfo.emailAddress))}</span></td></tr>
+      <tr><td class="label">5. Telephone Number:</td><td class="value"><span>${escapeHtml(ensureValue(companyInfo.phoneNumber))}</span></td></tr>
+      <tr><td class="label">6. Tax Number:</td><td class="value"><span>${escapeHtml(ensureValue(companyInfo.taxNumber))}</span></td></tr>
+    </table>
+    <div class="particulars-title">* PARTICULARS OF EMPLOYEES *</div>
+    <table class="employees-table">
+      <thead>
+        <tr>
+          <th>Surname</th>
+          <th>Initials</th>
+          <th>Social Security Registration No</th>
+          <th>Monthly Remuneration</th>
+          <th>Contributions Deducted</th>
+        </tr>
+      </thead>
+      <tbody>${employeeRowsHtml}</tbody>
+    </table>
+    <table class="totals-table">
+      <tr><td>Total Amount Deducted</td><td>${formatMoney(totalDeducted)}</td></tr>
+      <tr><td>Employer's Contribution</td><td>${formatMoney(employerContribution)}</td></tr>
+      <tr><td>Total Amount Paid Over</td><td>${formatMoney(totalPaidOver)}</td></tr>
+    </table>
+    <div class="declaration">Declaration<br/>I, ________________________________________________ (Full Names and Capacity) certify that the above particulars are true and correct.</div>
+    <div class="signature-row">
+      <div class="signature-cell"><div class="signature-line"></div><div>EMPLOYER</div></div>
+      <div class="signature-cell"><div class="signature-line"></div><div>OFFICIAL STAMP</div></div>
+      <div class="signature-cell"><div class="signature-line"></div><div>DATE</div></div>
+    </div>
+    <div class="office-box">
+      <h3>FOR OFFICE USE ONLY</h3>
+      <div class="office-grid">
+        <div><label>Checked By:</label><span></span></div>
+        <div><label>Date:</label><span></span></div>
+        <div><label>Time:</label><span></span></div>
+        <div><label>Receipt Number:</label><span></span></div>
+        <div><label>Fee Paid: N$</label><span></span></div>
+        <div class="span-two"><label>Remarks:</label><span class="remarks"></span></div>
+      </div>
+    </div>
+    <script>window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 300); };</script>
+  </body>
 </html>`;
 
-                win.document.write(html);
-                win.document.close();
-        };
+        win.document.write(html);
+        win.document.close();
+    };
 
     return (
         <div>
             <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold text-gray-700">Social Security Report Results</h3>
                 <div className="flex items-center gap-2">
-                                        {isNamibianCompany && (
-                                            <button
-                                                onClick={handleDownloadNamibiaForm}
-                                                className="flex items-center px-3 py-2 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-800 text-sm"
-                                            >
-                                                        <DocumentTextIcon />
-                                                        <span className="ml-2">Download Namibia Form 10(a)</span>
-                                                </button>
-                                        )}
+                    {isNamibianCompany && (
+                        <button
+                            onClick={handleDownloadNamibiaForm}
+                            className="flex items-center px-3 py-2 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-800 text-sm"
+                            disabled={namibiaRows.length === 0}
+                        >
+                            <DocumentTextIcon />
+                            <span className="ml-2">Download Namibia Form 10(a)</span>
+                        </button>
+                    )}
                     <button
                         onClick={handleDownloadPdf}
                         className="flex items-center px-3 py-2 bg-gray-500 text-white font-semibold rounded-lg hover:bg-gray-600 text-sm"
@@ -343,7 +316,7 @@ const SocialSecurityReport: React.FC<ReportProps> = ({ employees, companyInfo, s
                     </button>
                 </div>
             </div>
-             <div className="overflow-x-auto border rounded-lg">
+            <div className="overflow-x-auto border rounded-lg">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
