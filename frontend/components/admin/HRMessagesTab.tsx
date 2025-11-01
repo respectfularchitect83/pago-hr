@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Message, HRUser, Employee, MessageMetadata } from '../../types';
 import TrashIcon from '../icons/TrashIcon';
 
@@ -43,6 +43,39 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [processingMessageId, setProcessingMessageId] = useState<string | null>(null);
     const [processedMessageResults, setProcessedMessageResults] = useState<Record<string, ActionResultState>>({});
+    const [locallyDismissedUnread, setLocallyDismissedUnread] = useState<Set<string>>(() => new Set());
+
+    const markUnreadMessagesAsRead = useCallback(async (unreadMessages: Message[], employeeId: string) => {
+        if (unreadMessages.length === 0) {
+            return;
+        }
+
+        const unreadIds = unreadMessages.map(msg => msg.id);
+        let addedIds: string[] = [];
+        setLocallyDismissedUnread(prev => {
+            const idsToAdd = unreadIds.filter(id => !prev.has(id));
+            if (idsToAdd.length === 0) {
+                return prev;
+            }
+            addedIds = idsToAdd;
+            const next = new Set(prev);
+            idsToAdd.forEach(id => next.add(id));
+            return next;
+        });
+
+        try {
+            await Promise.all(unreadMessages.map(msg => Promise.resolve(onUpdateMessageStatus(msg.id, 'read'))));
+        } catch (error) {
+            if (addedIds.length > 0) {
+                setLocallyDismissedUnread(prev => {
+                    const next = new Set(prev);
+                    addedIds.forEach(id => next.delete(id));
+                    return next;
+                });
+            }
+            console.error(`Failed to mark conversation messages as read for ${employeeId}`, error);
+        }
+    }, [onUpdateMessageStatus]);
 
     const conversations = useMemo(() => {
         const conversationsMap = new Map<string, Conversation>();
@@ -54,7 +87,7 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({
 
             const existing = conversationsMap.get(employeeId);
             if (!existing || new Date(msg.timestamp) > new Date(existing.lastMessage.timestamp)) {
-                const unreadCount = messages.filter(m => (m.senderId === employeeId) && m.status === 'unread').length;
+                const unreadCount = messages.filter(m => (m.senderId === employeeId) && m.status === 'unread' && !locallyDismissedUnread.has(m.id)).length;
                 conversationsMap.set(employeeId, {
                     employeeId: employee.id,
                     employeeName: employee.name,
@@ -66,7 +99,7 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({
         });
 
         return Array.from(conversationsMap.values()).sort((a, b) => new Date(b.lastMessage.timestamp).getTime() - new Date(a.lastMessage.timestamp).getTime());
-    }, [messages, employees]);
+    }, [messages, employees, locallyDismissedUnread]);
 
     const selectedConversationMessages = useMemo(() => {
         if (!selectedEmployeeId) return [];
@@ -79,17 +112,10 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({
         return employees.find(e => e.id === selectedEmployeeId);
     }, [selectedEmployeeId, employees]);
 
-    const handleSelectConversation = async (employeeId: string) => {
+    const handleSelectConversation = (employeeId: string) => {
         setSelectedEmployeeId(employeeId);
         const unreadFromEmployee = messages.filter(msg => msg.senderId === employeeId && msg.status === 'unread');
-        if (unreadFromEmployee.length === 0) {
-            return;
-        }
-        try {
-            await Promise.all(unreadFromEmployee.map(msg => Promise.resolve(onUpdateMessageStatus(msg.id, 'read'))));
-        } catch (error) {
-            console.error('Failed to mark conversation messages as read', error);
-        }
+        void markUnreadMessagesAsRead(unreadFromEmployee, employeeId);
     };
 
     const handleSendReply = async (e: React.FormEvent) => {
@@ -124,6 +150,35 @@ const HRMessagesTab: React.FC<HRMessagesTabProps> = ({
             setSelectedEmployeeId(null);
         }
     }, [messages, selectedEmployeeId]);
+
+    useEffect(() => {
+        if (!selectedEmployeeId) {
+            return;
+        }
+        const unreadWhileActive = messages.filter(msg => msg.senderId === selectedEmployeeId && msg.status === 'unread' && !locallyDismissedUnread.has(msg.id));
+        if (unreadWhileActive.length === 0) {
+            return;
+        }
+        void markUnreadMessagesAsRead(unreadWhileActive, selectedEmployeeId);
+    }, [messages, selectedEmployeeId, locallyDismissedUnread, markUnreadMessagesAsRead]);
+
+    useEffect(() => {
+        setLocallyDismissedUnread(prev => {
+            if (prev.size === 0) {
+                return prev;
+            }
+            let changed = false;
+            const next = new Set(prev);
+            prev.forEach(id => {
+                const message = messages.find(msg => msg.id === id);
+                if (!message || message.status !== 'unread') {
+                    next.delete(id);
+                    changed = true;
+                }
+            });
+            return changed ? next : prev;
+        });
+    }, [messages]);
     
     const timeSince = (date: string): string => {
         const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
