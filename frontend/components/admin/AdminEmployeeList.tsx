@@ -132,6 +132,14 @@ const AdminEmployeeList: React.FC<AdminEmployeeListProps> = ({ employees, onSele
     return { todays, upcoming };
   }, [employees]);
 
+  const birthdayHighlights = useMemo(() => {
+    const formatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
+    return [...birthdayReminders.todays, ...birthdayReminders.upcoming].map(entry => ({
+      employee: entry.employee,
+      dateLabel: entry.daysUntil === 0 ? 'Today' : formatter.format(entry.nextBirthday),
+    }));
+  }, [birthdayReminders]);
+
   const renderReminderText = (entries: { employee: Employee; birthday: Date; nextBirthday: Date; daysUntil: number }[], includeDate = false) => {
     if (entries.length === 0) {
       return 'None';
@@ -173,21 +181,45 @@ const AdminEmployeeList: React.FC<AdminEmployeeListProps> = ({ employees, onSele
 
   return (
     <div>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-4">
-        <h2 className="text-xl font-bold text-gray-800">Manage Employees</h2>
-        <div className="flex flex-col gap-3 sm:items-end sm:text-right">
-          <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-xs text-gray-600">
-            <p className="font-semibold text-gray-700">Birthdays</p>
-            <p>Today: {renderReminderText(birthdayReminders.todays)}</p>
-            <p>Upcoming: {renderReminderText(birthdayReminders.upcoming, true)}</p>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-4">
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4">
+            <h2 className="text-xl font-bold text-gray-800">Manage Employees</h2>
+            <div className="flex items-center gap-3 flex-wrap">
+              {birthdayHighlights.length === 0 ? (
+                <span className="text-xs text-gray-500">No birthdays on the horizon</span>
+              ) : (
+                birthdayHighlights.map(({ employee, dateLabel }) => (
+                  <div
+                    key={`${employee.id}-${dateLabel}`}
+                    className="relative flex h-16 w-16 items-end justify-center"
+                    title={`${employee.name} — ${dateLabel}`}
+                  >
+                    <img
+                      src={employee.photoUrl}
+                      alt={`${employee.name} profile`}
+                      className="h-14 w-14 rounded-full object-cover shadow-md border border-white"
+                    />
+                    <span className="absolute -bottom-1 right-0 rounded-full bg-gray-800 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow">
+                      {dateLabel}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
-          <button 
-              onClick={onAddNew}
-              className="flex items-center justify-center px-4 py-2 bg-gray-800 text-white font-semibold rounded-lg hover:bg-gray-900 text-sm"
-          >
-              <UserPlusIcon className="mr-2" /> Add New Employee
-          </button>
+          {birthdayHighlights.length > 0 && (
+            <p className="text-xs text-gray-500">
+              Today: {renderReminderText(birthdayReminders.todays)} | Upcoming: {renderReminderText(birthdayReminders.upcoming, true)}
+            </p>
+          )}
         </div>
+        <button
+          onClick={onAddNew}
+          className="flex items-center justify-center px-4 py-2 bg-gray-800 text-white font-semibold rounded-lg hover:bg-gray-900 text-sm"
+        >
+          <UserPlusIcon className="mr-2" /> Add New Employee
+        </button>
       </div>
       
       <div className="mb-4 border-b border-gray-200">
